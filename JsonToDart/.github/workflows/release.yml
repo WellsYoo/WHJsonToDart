@@ -1,0 +1,203 @@
+name: Release Build
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag name (e.g., v1.0.0)'
+        required: true
+        type: string
+      release_id:
+        description: 'Release ID (optional, for existing releases)'
+        required: false
+        type: string
+
+# 设置工作流权限
+permissions:
+  contents: write  # 允许写入内容（推送、创建 Release 等）
+  pages: write     # 允许部署到 GitHub Pages
+  id-token: write  # 允许 OIDC 令牌生成
+
+# 获取当前触发类型（自动发布还是手动触发）
+env:
+  IS_WORKFLOW_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name || github.ref_name }}
+  RELEASE_ID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_id || github.event.release.id }}
+
+jobs:
+  build:
+    name: Build Desktop & Web
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false  # 允许继续执行，即使某些作业失败
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-22.04
+            platform: linux
+            build_target: build/linux/x64/release/bundle
+            artifact: linux.tar.gz
+          - os: macos-latest
+            platform: macos
+            build_target: build/macos/Build/Products/Release/json_to_dart.app
+            artifact: macos.tar.gz
+          - os: windows-latest
+            platform: windows
+            build_target: "build\\windows\\x64\\runner\\Release"
+            artifact: windows.zip
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install Linux Dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev ninja-build liblzma-dev libstdc++-12-dev
+
+      - name: Setup Flutter
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          cache: true
+
+      - name: Display flutter info
+        run: |
+          flutter doctor -v
+
+      - name: Install dependencies
+        run: |
+          cd Flutter/json_to_dart
+          flutter pub get
+
+      - name: Build desktop
+        run: |
+          cd Flutter/json_to_dart
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            flutter build windows --release
+            ZIP_DIR="${{ matrix.build_target }}"
+            pwsh -command "Compress-Archive -Path '${ZIP_DIR}\*' -DestinationPath '${{ matrix.artifact }}'"
+          elif [ "${{ matrix.platform }}" = "macos" ]; then
+            flutter build macos --release
+            APP_PARENT_DIR=$(dirname "${{ matrix.build_target }}")
+            APP_FILENAME=$(basename "${{ matrix.build_target }}")
+            tar -czf "${{ matrix.artifact }}" -C "$APP_PARENT_DIR" "$APP_FILENAME"
+          else
+            flutter build linux --release
+            TAR_DIR=$(dirname "${{ matrix.build_target }}")
+            APP_DIR=$(basename "${{ matrix.build_target }}")
+            tar -czf "${{ matrix.artifact }}" -C "$TAR_DIR" "$APP_DIR"
+          fi
+        shell: bash
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-release
+          path: Flutter/json_to_dart/${{ matrix.artifact }}
+          retention-days: 5
+
+  deploy_web:
+    name: Deploy Web
+    needs: build
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Flutter
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          cd Flutter/json_to_dart
+          flutter pub get
+
+      - name: Build web
+        run: |
+          cd Flutter/json_to_dart
+          flutter build web --release
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: Flutter/json_to_dart/build/web
+          branch: gh-pages
+          clean: true
+          target-folder: .
+
+  create_release:
+    name: Create/Update Release
+    needs: [build, deploy_web]
+    if: >
+      github.event_name != 'workflow_dispatch' || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.release_id == '')
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Release ${{ env.RELEASE_TAG }}
+          files: |
+            artifacts/linux-release/linux.tar.gz
+            artifacts/macos-release/macos.tar.gz
+            artifacts/windows-release/windows.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update_release:
+    name: Update Release
+    needs: [build, create_release]
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.release_id != ''
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Upload to existing Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          release_id: ${{ env.RELEASE_ID }}
+          file: artifacts/linux-release/linux.tar.gz
+          asset_name: linux.tar.gz
+          overwrite: true
+
+      - name: Upload macOS artifact to Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          release_id: ${{ env.RELEASE_ID }}
+          file: artifacts/macos-release/macos.tar.gz
+          asset_name: macos.tar.gz
+          overwrite: true
+
+      - name: Upload Windows artifact to Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          release_id: ${{ env.RELEASE_ID }}
+          file: artifacts/windows-release/windows.zip
+          asset_name: windows.zip
+          overwrite: true
