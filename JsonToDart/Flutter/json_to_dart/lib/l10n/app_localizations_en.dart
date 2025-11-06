@@ -1,3 +1,5 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -26,7 +28,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get formatErrorInfo => 'There is something wrong to format. The error has copied into Clipboard.';
+  String get formatErrorInfo =>
+      'There is something wrong to format. The error has copied into Clipboard.';
 
   @override
   String get illegalJson => 'Illegal JSON format';
@@ -35,13 +38,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get timeFormatError => 'The format of time is not right.';
 
   @override
-  String get generateSucceed => 'The dart code is generated successfully. It has copied into Clipboard.';
+  String get generateSucceed =>
+      'The dart code is generated successfully. It has copied into Clipboard.';
 
   @override
-  String get generateFailed => 'The dart code is generated failed. The error has copied into Clipboard.';
+  String get generateFailed =>
+      'The dart code is generated failed. The error has copied into Clipboard.';
 
   @override
-  String get inputHelp => 'Please input your json string, and click Format button.';
+  String get inputHelp =>
+      'Please input your json string, and click Format button.';
 
   @override
   String get type => 'Type';
@@ -89,7 +95,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fileHeader => 'File Header';
 
   @override
-  String get fileHeaderHelp => 'You can add copyright,dart code, creator into here. support [Date yyyy MM-dd] format to generate time.';
+  String get fileHeaderHelp =>
+      'You can add copyright,dart code, creator into here. support [Date yyyy MM-dd] format to generate time.';
 
   @override
   String get nullsafety => 'Null Safety';
@@ -113,7 +120,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ok => 'OK';
 
   @override
-  String get propertyCantSameAsClassName => 'property can\'t the same as Class name';
+  String get propertyCantSameAsClassName =>
+      'property can\'t the same as Class name';
 
   @override
   String keywordCheckFailed(Object name) {
