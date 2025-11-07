@@ -18,6 +18,8 @@ class JsonTextField extends StatelessWidget {
       child: TextField(
         controller: controller.textEditingController,
         maxLines: null,
+        enableIMEPersonalizedLearning: true,
+        enableInteractiveSelection: true,
         decoration: InputDecoration(
           border: InputBorder.none,
           hintText: appLocalizations.inputHelp,

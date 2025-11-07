@@ -13,9 +13,39 @@ import 'package:json_schema/json_schema.dart';
 import 'package:json_to_dart/l10n/app_localizations.dart';
 import 'package:json_to_dart_library/json_to_dart_library.dart' hide StringE;
 
+import 'models/api_config.dart';
 import 'models/config.dart';
+import 'utils/api_code_generator.dart';
 
 AppLocalizations get appLocalizations => AppLocalizations.of(Get.context!)!;
+
+/// Custom TextEditingController that preserves IME composing state
+/// to fix Chinese/Japanese/Korean input method issues
+class ComposingTextEditingController extends TextEditingController {
+  @override
+  set value(TextEditingValue newValue) {
+    // Preserve composing range when updating text programmatically
+    // This prevents interrupting IME composition (e.g., Chinese Pinyin input)
+    final TextRange composing = value.composing;
+
+    // If there's an active composition, preserve it
+    if (composing.isValid && !composing.isCollapsed) {
+      super.value = newValue.copyWith(composing: composing);
+    } else {
+      super.value = newValue;
+    }
+  }
+
+  @override
+  set text(String newText) {
+    // Check if composing is in progress
+    if (value.composing.isValid && !value.composing.isCollapsed) {
+      // Don't update text while composing
+      return;
+    }
+    super.text = newText;
+  }
+}
 
 void showAlertDialog(String msg, [IconData data = Icons.warning]) {
   SmartDialog.show(
@@ -35,12 +65,18 @@ void showAlertDialog(String msg, [IconData data = Icons.warning]) {
 }
 
 class MainController extends GetxController with JsonToDartControllerMixin {
-  final TextEditingController _textEditingController = TextEditingController();
+  final TextEditingController _textEditingController = ComposingTextEditingController();
 
   final TextEditingController fileHeaderHelpController = TextEditingController()
     ..text = ConfigSetting().fileHeaderInfo;
 
   DartObject? dartObject;
+
+  /// API 配置
+  final ApiConfig apiConfig = ApiConfig();
+
+  /// API 生成结果
+  ApiCodeGenerationResult? apiCodeGenerationResult;
 
   String get text => _textEditingController.text;
 
@@ -108,7 +144,15 @@ class MainController extends GetxController with JsonToDartControllerMixin {
         return null;
       });
       if (formatJsonString != null) {
+        // 保存当前光标位置
+        final int cursorPosition = _textEditingController.selection.baseOffset;
         _textEditingController.text = formatJsonString;
+        // 恢复光标位置,确保不超出新文本长度
+        if (cursorPosition >= 0 && cursorPosition <= formatJsonString.length) {
+          _textEditingController.selection = TextSelection.fromPosition(
+            TextPosition(offset: cursorPosition),
+          );
+        }
       }
 
       update();
@@ -256,6 +300,183 @@ class MainController extends GetxController with JsonToDartControllerMixin {
     showAlertDialog(appLocalizations.formatErrorInfo, Icons.error);
 
     Clipboard.setData(ClipboardData(text: '$e\n$stack'));
+  }
+
+  /// 生成 API 相关代码 (请求/响应 Model + API 方法)
+  Future<void> generateApiCode() async {
+    if (apiConfig.methodName.value.isEmpty) {
+      showAlertDialog('请输入请求方法名', Icons.error);
+      return;
+    }
+
+    if (apiConfig.apiUrl.value.isEmpty) {
+      showAlertDialog('请输入 API URL', Icons.error);
+      return;
+    }
+
+    if (apiConfig.requestJson.value.isEmpty) {
+      showAlertDialog('请输入请求参数 JSON', Icons.error);
+      return;
+    }
+
+    if (apiConfig.hasResponse.value && apiConfig.responseJson.value.isEmpty) {
+      showAlertDialog('请输入响应参数 JSON', Icons.error);
+      return;
+    }
+
+    SmartDialog.showLoading(
+      builder: (BuildContext context) => const Center(
+        child: SpinKitCubeGrid(color: Colors.orange),
+      ),
+    );
+
+    try {
+      // 1. 生成请求参数 Model
+      final String? requestModelCode = await _generateModelCode(
+        apiConfig.requestJson.value,
+        apiConfig.requestClassName,
+      );
+      if (requestModelCode == null) {
+        SmartDialog.dismiss();
+        showAlertDialog('请求参数 Model 生成失败', Icons.error);
+        return;
+      }
+
+      // 2. 生成响应参数 Model (如果需要)
+      String? responseModelCode;
+      if (apiConfig.hasResponse.value) {
+        responseModelCode = await _generateModelCode(
+          apiConfig.responseJson.value,
+          apiConfig.responseClassName,
+        );
+        if (responseModelCode == null) {
+          SmartDialog.dismiss();
+          showAlertDialog('响应参数 Model 生成失败', Icons.error);
+          return;
+        }
+      } else {
+        // 无响应参数,使用空字符串
+        responseModelCode = '';
+      }
+
+      // 3. 生成 API 方法代码
+      apiCodeGenerationResult = ApiCodeGenerator.generateApiCode(
+        apiConfig: apiConfig,
+        requestModelCode: requestModelCode,
+        responseModelCode: responseModelCode,
+      );
+
+      if (apiCodeGenerationResult != null) {
+        // 复制所有代码到剪贴板
+        final StringBuffer sb = StringBuffer();
+        sb.writeln('// ========== ${apiCodeGenerationResult!.requestFileName} ==========');
+        sb.writeln(apiCodeGenerationResult!.requestModelCode);
+        sb.writeln();
+
+        // 只在有响应参数时才添加
+        if (apiCodeGenerationResult!.responseModelCode.isNotEmpty) {
+          sb.writeln('// ========== ${apiCodeGenerationResult!.responseFileName} ==========');
+          sb.writeln(apiCodeGenerationResult!.responseModelCode);
+          sb.writeln();
+        }
+
+        sb.writeln('// ========== ${apiCodeGenerationResult!.apiFileName} ==========');
+        sb.writeln(apiCodeGenerationResult!.apiMethodCode);
+
+        Clipboard.setData(ClipboardData(text: sb.toString()));
+
+        SmartDialog.dismiss();
+        SmartDialog.showToast('API 代码生成成功,已复制到剪贴板');
+        update();
+      } else {
+        SmartDialog.dismiss();
+        showAlertDialog('API 代码生成失败', Icons.error);
+      }
+    } catch (e, stack) {
+      SmartDialog.dismiss();
+      handleError(e, stack);
+    }
+  }
+
+  /// 生成单个 Model 代码的辅助方法
+  Future<String?> _generateModelCode(String jsonString, String className) async {
+    // 清理 printedObjects,避免影响当前生成
+    // (allProperties 和 allObjects 会在 formatJsonAndCreateDartObject 中清理)
+    printedObjects.clear();
+
+    text = jsonString;
+    await formatJsonAndCreateDartObject();
+    if (dartObject == null) {
+      return null;
+    }
+    dartObject!.className = className;
+    // 移除 validErrors 字段
+    _removeValidErrorsField(dartObject!);
+
+    // 清除所有对象的错误状态(重要:避免残留的错误状态影响生成)
+    for (final DartObject obj in allObjects) {
+      obj.classError.clear();
+      obj.propertyError.clear();
+    }
+    for (final DartProperty prop in allProperties) {
+      prop.propertyError.clear();
+    }
+
+    return generateDartCode(dartObject);
+  }
+
+  /// 复制所有 API 代码到剪贴板
+  void copyAllApiCode() {
+    if (apiCodeGenerationResult == null) {
+      return;
+    }
+
+    final StringBuffer sb = StringBuffer();
+    sb.writeln('// ========== ${apiCodeGenerationResult!.requestFileName} ==========');
+    sb.writeln(apiCodeGenerationResult!.requestModelCode);
+    sb.writeln();
+
+    // 只在有响应参数时才添加
+    if (apiCodeGenerationResult!.responseModelCode.isNotEmpty) {
+      sb.writeln('// ========== ${apiCodeGenerationResult!.responseFileName} ==========');
+      sb.writeln(apiCodeGenerationResult!.responseModelCode);
+      sb.writeln();
+    }
+
+    sb.writeln('// ========== ${apiCodeGenerationResult!.apiFileName} ==========');
+    sb.writeln(apiCodeGenerationResult!.apiMethodCode);
+
+    Clipboard.setData(ClipboardData(text: sb.toString()));
+    SmartDialog.showToast('已复制所有代码到剪贴板');
+  }
+
+  /// 复制单个文件代码到剪贴板
+  void copyFileCode(String code, String fileName) {
+    Clipboard.setData(ClipboardData(text: code));
+    SmartDialog.showToast('已复制 $fileName 到剪贴板');
+  }
+
+  /// 移除 validErrors 字段 (递归处理所有嵌套对象)
+  void _removeValidErrorsField(DartObject dartObject) {
+    // 移除当前对象的 validErrors 属性
+    dartObject.properties.removeWhere(
+        (DartProperty property) => property.name == 'validErrors');
+
+    // 递归处理嵌套对象
+    for (final DartProperty property in dartObject.properties) {
+      final Object propertyType = property.type;
+      if (propertyType is DartObject) {
+        _removeValidErrorsField(propertyType);
+      }
+    }
+
+    // 处理所有子对象
+    for (final DartObject child in allObjects) {
+      if (child != dartObject) {
+        child.properties.removeWhere(
+            (DartProperty property) => property.name == 'validErrors');
+      }
+    }
   }
 }
 

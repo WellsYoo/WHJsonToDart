@@ -22,6 +22,14 @@ class SettingWidget extends StatelessWidget {
       direction: Axis.horizontal,
       children: <Widget>[
         TapButton(
+          title: 'API 代码生成',
+          icon: Icons.api,
+          onPressed: () {
+            controller.apiConfig.apiMode.value = true;
+            controller.update();
+          },
+        ),
+        TapButton(
           title: appLocalizations.formatButtonLabel,
           icon: Icons.format_align_left,
           onPressed: () {

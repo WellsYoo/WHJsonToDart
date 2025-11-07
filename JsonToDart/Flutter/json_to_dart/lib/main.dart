@@ -9,6 +9,8 @@ import 'package:json_to_dart/models/ff_config.dart';
 import 'package:json_to_dart_library/json_to_dart_library.dart';
 import 'main_controller.dart';
 import 'models/config.dart';
+import 'pages/api_config_page.dart';
+import 'pages/api_result_page.dart';
 import 'pages/json_text_field.dart';
 import 'pages/json_tree.dart';
 import 'pages/json_tree_header.dart';
@@ -59,44 +61,80 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ColorPlate.white,
-      body: Row(
-        children: <Widget>[
-          Expanded(
-            flex: ConfigSetting().column1Width,
-            child: Container(
-              margin: const EdgeInsets.all(10.0),
-              child: Column(
-                children: <Widget>[
-                  Expanded(
-                    child: JsonTextField(),
+      body: GetBuilder<MainController>(
+        builder: (MainController c) {
+          // API 模式
+          if (c.apiConfig.apiMode.value) {
+            return Row(
+              children: <Widget>[
+                // 左侧: API 配置输入
+                Expanded(
+                  flex: ConfigSetting().column1Width,
+                  child: Container(
+                    margin: const EdgeInsets.all(10.0),
+                    child: const ApiConfigPage(),
                   ),
-                  const SettingWidget(),
-                ],
+                ),
+                Listener(
+                  onPointerDown: onPointerDown,
+                  onPointerUp: onPointerUp,
+                  onPointerMove: onPointerMove,
+                  behavior: HitTestBehavior.translucent,
+                  child: const DragIcon(),
+                ),
+                // 右侧: API 生成结果
+                Expanded(
+                  flex: ConfigSetting().column2Width,
+                  child: Container(
+                    margin: const EdgeInsets.all(10.0),
+                    child: const ApiResultPage(),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // 普通 JSON 转 Dart 模式
+          return Row(
+            children: <Widget>[
+              Expanded(
+                flex: ConfigSetting().column1Width,
+                child: Container(
+                  margin: const EdgeInsets.all(10.0),
+                  child: Column(
+                    children: <Widget>[
+                      Expanded(
+                        child: JsonTextField(),
+                      ),
+                      const SettingWidget(),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-          Listener(
-            onPointerDown: onPointerDown,
-            onPointerUp: onPointerUp,
-            onPointerMove: onPointerMove,
-            behavior: HitTestBehavior.translucent,
-            child: const DragIcon(),
-          ),
-          Expanded(
-            flex: ConfigSetting().column2Width,
-            child: Container(
-              margin: const EdgeInsets.all(10.0),
-              child: Column(
-                children: <Widget>[
-                  const JsonTreeHeader(),
-                  Expanded(
-                    child: JsonTree(),
-                  )
-                ],
+              Listener(
+                onPointerDown: onPointerDown,
+                onPointerUp: onPointerUp,
+                onPointerMove: onPointerMove,
+                behavior: HitTestBehavior.translucent,
+                child: const DragIcon(),
               ),
-            ),
-          )
-        ],
+              Expanded(
+                flex: ConfigSetting().column2Width,
+                child: Container(
+                  margin: const EdgeInsets.all(10.0),
+                  child: Column(
+                    children: <Widget>[
+                      const JsonTreeHeader(),
+                      Expanded(
+                        child: JsonTree(),
+                      )
+                    ],
+                  ),
+                ),
+              )
+            ],
+          );
+        },
       ),
     );
   }
