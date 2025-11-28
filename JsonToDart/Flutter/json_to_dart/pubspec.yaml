@@ -36,6 +36,7 @@ dependencies:
   hive_flutter: any
   json_to_dart_library: ^0.0.7
   nested: any
+  file_picker: any
 
 dependency_overrides:
   intl: ^0.20.2
@@ -43,6 +44,7 @@ dependency_overrides:
 dev_dependencies:
   build_runner: any
   flutter_native_splash: any
+  flutter_launcher_icons: any
   flutter_test:
     sdk: flutter
   # hive_generator: any
@@ -67,3 +69,14 @@ flutter:
 flutter_native_splash:
   color: "#42a5f5"
   image: web/favicon.png
+
+flutter_launcher_icons:
+  android: false
+  ios: false
+  web:
+    generate: false
+  windows:
+    generate: false
+  macos:
+    generate: true
+  image_path: "assets/icon/icon.png"

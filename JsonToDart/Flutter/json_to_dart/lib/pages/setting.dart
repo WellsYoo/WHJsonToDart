@@ -360,41 +360,80 @@ class MoreSetting extends StatelessWidget {
         vertical: 12,
         horizontal: 20,
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: <Widget>[
-          buttonGroup,
-          Align(
-            child: StText.small(
-              appLocalizations.fileHeader,
-            ),
-            alignment: Alignment.centerLeft,
-          ),
-          Container(
-            margin: const EdgeInsets.only(top: 10.0),
-            decoration: ShapeDecoration(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: <Widget>[
+            buttonGroup,
+            const SizedBox(height: 16),
+            Align(
+              child: StText.small(
+                appLocalizations.fileHeader,
               ),
-              color: ColorPlate.lightGray,
+              alignment: Alignment.centerLeft,
             ),
-            child: TextField(
-              maxLines: null,
-              controller: controller.fileHeaderHelpController,
-              onChanged: (String value) {
-                ConfigSetting().fileHeaderInfo = value;
-                ConfigSetting().save();
-              },
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                border: InputBorder.none,
-                hintStyle: const TextStyle(color: Colors.grey),
-                hintText: appLocalizations.fileHeaderHelp,
+            Container(
+              margin: const EdgeInsets.only(top: 10.0),
+              decoration: ShapeDecoration(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                color: ColorPlate.lightGray,
+              ),
+              child: TextField(
+                maxLines: null,
+                controller: controller.fileHeaderHelpController,
+                onChanged: (String value) {
+                  ConfigSetting().fileHeaderInfo = value;
+                  ConfigSetting().save();
+                },
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  border: InputBorder.none,
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  hintText: appLocalizations.fileHeaderHelp,
+                ),
+              ),
+              height: 200.0,
+            ),
+            const SizedBox(height: 16),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: StText.small(
+                'API 默认导入 (每行一个 import 路径)',
               ),
             ),
-            height: 200.0,
-          ),
-        ],
+            Container(
+              margin: const EdgeInsets.only(top: 10.0, bottom: 20.0),
+              decoration: ShapeDecoration(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                color: ColorPlate.lightGray,
+              ),
+              child: TextField(
+                maxLines: null,
+                controller: TextEditingController(
+                  text: ConfigSetting().defaultImports.join('\n'),
+                ),
+                onChanged: (String value) {
+                  ConfigSetting().defaultImports = value
+                      .split('\n')
+                      .where((String line) => line.trim().isNotEmpty)
+                      .toList();
+                  ConfigSetting().save();
+                },
+                decoration: const InputDecoration(
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                  border: InputBorder.none,
+                  hintStyle: TextStyle(color: Colors.grey),
+                  hintText: 'package:xjj_app_common/model/parse_nullable_resp.dart\npackage:xjj_app_common/model/response/base_resp.dart',
+                ),
+              ),
+              height: 150.0,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -181,6 +181,15 @@ class ApiConfig {
   /// Form 请求的失败提示文本 (默认: '提交失败')
   final RxString formErrorText = '提交失败'.obs;
 
+  /// 请求参数导出目录 (例如: lib/model/req)
+  final RxString requestExportDir = ''.obs;
+
+  /// 响应参数导出目录 (例如: lib/model/resp)
+  final RxString responseExportDir = ''.obs;
+
+  /// API 方法导出目录 (例如: lib/api)
+  final RxString apiExportDir = ''.obs;
+
   /// 获取请求参数类名
   String get requestClassName {
     if (methodName.value.isEmpty) {
@@ -255,5 +264,8 @@ class ApiConfig {
     formLoadText.value = '提交中...';
     formSuccessText.value = '提交成功';
     formErrorText.value = '提交失败';
+    requestExportDir.value = '';
+    responseExportDir.value = '';
+    apiExportDir.value = '';
   }
 }

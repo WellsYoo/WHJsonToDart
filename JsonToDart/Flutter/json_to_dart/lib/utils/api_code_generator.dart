@@ -67,36 +67,10 @@ class ApiCodeGenerator {
   }) {
     final CustomStringBuffer sb = CustomStringBuffer();
 
-    // 导入语句
-    _generateImports(sb, apiConfig, requestClassName, responseClassName);
-
-    // 生成 API 代码片段 (不包含类结构)
+    // 不生成导入语句,直接生成 API 代码片段
     _generateApiSnippet(sb, apiConfig, requestClassName, responseClassName);
 
     return sb.toString();
-  }
-
-  /// 生成导入语句
-  static void _generateImports(
-    CustomStringBuffer sb,
-    ApiConfig apiConfig,
-    String requestClassName,
-    String responseClassName,
-  ) {
-    // 根据示例,需要导入相关依赖
-    if (apiConfig.useSprintfUrl.value) {
-      sb.writeLine('import \'package:sprintf/sprintf.dart\';');
-    }
-
-    // 这里假设使用通用的 HTTP 工具类
-    sb.writeLine('import \'package:xjj_app_common/xjj_app_common.dart\';');
-
-    // 导入请求和响应模型
-    sb.writeLine(
-        'import \'package:your_app/model/req/${apiConfig.requestFileName}\';');
-    sb.writeLine(
-        'import \'package:your_app/model/resp/${apiConfig.responseFileName}\';');
-    sb.writeLine('');
   }
 
   /// 生成 API 代码片段 (不包含类结构)

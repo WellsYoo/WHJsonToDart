@@ -16,6 +16,8 @@ import 'package:json_to_dart_library/json_to_dart_library.dart' hide StringE;
 import 'models/api_config.dart';
 import 'models/config.dart';
 import 'utils/api_code_generator.dart';
+import 'utils/file_download_stub.dart'
+    if (dart.library.html) 'utils/file_download_web.dart' as file_download;
 
 AppLocalizations get appLocalizations => AppLocalizations.of(Get.context!)!;
 
@@ -137,9 +139,8 @@ class MainController extends GetxController with JsonToDartControllerMixin {
         updateNullable(true);
       }
 
-      final String? formatJsonString =
-          await compute<dynamic, String?>(formatJson, jsonData)
-              .onError((Object? error, StackTrace stackTrace) {
+      final String? formatJsonString = await compute<dynamic, String?>(formatJson, jsonData)
+          .onError((Object? error, StackTrace stackTrace) {
         handleError(error, stackTrace);
         return null;
       });
@@ -168,17 +169,15 @@ class MainController extends GetxController with JsonToDartControllerMixin {
 
     if (dartObject != null) {
       final DartObject? errorObject = allObjects.firstOrNullWhere(
-          (DartObject element) =>
-              element.hasClassError || element.hasPropertyError);
+          (DartObject element) => element.hasClassError || element.hasPropertyError);
       if (errorObject != null) {
-        showAlertDialog(errorObject.classError.join('\n') +
-            '\n' +
-            errorObject.propertyError.join('\n'));
+        showAlertDialog(
+            errorObject.classError.join('\n') + '\n' + errorObject.propertyError.join('\n'));
         return null;
       }
 
-      final DartProperty? errorProperty = allProperties
-          .firstOrNullWhere((DartProperty element) => element.hasPropertyError);
+      final DartProperty? errorProperty =
+          allProperties.firstOrNullWhere((DartProperty element) => element.hasPropertyError);
 
       if (errorProperty != null) {
         showAlertDialog(errorProperty.propertyError.join('\n'));
@@ -199,14 +198,12 @@ class MainController extends GetxController with JsonToDartControllerMixin {
               if (end >= start) {
                 String format = info.substring(start, end - start).trim();
 
-                final String replaceString =
-                    info.substring(startIndex, end - startIndex + 1);
+                final String replaceString = info.substring(startIndex, end - startIndex + 1);
                 if (format == '') {
                   format = 'yyyy MM-dd';
                 }
 
-                info = info.replaceAll(
-                    replaceString, DateFormat(format).format(DateTime.now()));
+                info = info.replaceAll(replaceString, DateFormat(format).format(DateTime.now()));
               }
             }
           } catch (e) {
@@ -217,6 +214,13 @@ class MainController extends GetxController with JsonToDartControllerMixin {
         }
 
         sb.writeLine(DartHelper.jsonImport);
+
+        // 添加默认导入 (仅用于 Model)
+        for (final String defaultImport in ConfigSetting().defaultImports) {
+          if (defaultImport.trim().isNotEmpty) {
+            sb.writeLine('import \'$defaultImport\';');
+          }
+        }
 
         if (ConfigSetting().addMethod.value) {
           if (ConfigSetting().enableArrayProtection.value) {
@@ -456,11 +460,75 @@ class MainController extends GetxController with JsonToDartControllerMixin {
     SmartDialog.showToast('已复制 $fileName 到剪贴板');
   }
 
+  /// 下载文件到本地
+  Future<bool> downloadFile(String content, String fileName,
+      {bool showToast = true}) async {
+    try {
+      await file_download.downloadFile(content, fileName);
+      if (showToast) {
+        SmartDialog.showToast('已下载 $fileName');
+      }
+      return true;
+    } catch (e) {
+      if (showToast) {
+        SmartDialog.showToast('下载失败: $e');
+      }
+      return false;
+    }
+  }
+
+  /// 导出所有 API 文件
+  Future<void> exportAllApiFiles() async {
+    if (apiCodeGenerationResult == null) {
+      return;
+    }
+
+    int successCount = 0;
+    int totalCount = apiCodeGenerationResult!.responseModelCode.isNotEmpty ? 3 : 2;
+
+    // 下载请求参数 Model
+    if (await downloadFile(
+      apiCodeGenerationResult!.requestModelCode,
+      apiCodeGenerationResult!.requestFileName,
+      showToast: false,
+    )) {
+      successCount++;
+    }
+
+    // 只在有响应参数时才下载
+    if (apiCodeGenerationResult!.responseModelCode.isNotEmpty) {
+      if (await downloadFile(
+        apiCodeGenerationResult!.responseModelCode,
+        apiCodeGenerationResult!.responseFileName,
+        showToast: false,
+      )) {
+        successCount++;
+      }
+    }
+
+    // 下载 API 方法文件
+    if (await downloadFile(
+      apiCodeGenerationResult!.apiMethodCode,
+      apiCodeGenerationResult!.apiFileName,
+      showToast: false,
+    )) {
+      successCount++;
+    }
+
+    // 统一显示一次结果提示
+    if (successCount == totalCount) {
+      SmartDialog.showToast('成功导出 $successCount 个文件');
+    } else if (successCount > 0) {
+      SmartDialog.showToast('已导出 $successCount/$totalCount 个文件');
+    } else {
+      SmartDialog.showToast('导出失败');
+    }
+  }
+
   /// 移除 validErrors 字段 (递归处理所有嵌套对象)
   void _removeValidErrorsField(DartObject dartObject) {
     // 移除当前对象的 validErrors 属性
-    dartObject.properties.removeWhere(
-        (DartProperty property) => property.name == 'validErrors');
+    dartObject.properties.removeWhere((DartProperty property) => property.name == 'validErrors');
 
     // 递归处理嵌套对象
     for (final DartProperty property in dartObject.properties) {
@@ -473,8 +541,7 @@ class MainController extends GetxController with JsonToDartControllerMixin {
     // 处理所有子对象
     for (final DartObject child in allObjects) {
       if (child != dartObject) {
-        child.properties.removeWhere(
-            (DartProperty property) => property.name == 'validErrors');
+        child.properties.removeWhere((DartProperty property) => property.name == 'validErrors');
       }
     }
   }

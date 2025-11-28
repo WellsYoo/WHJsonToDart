@@ -40,13 +40,26 @@ class ApiResultPage extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: () => controller.copyAllApiCode(),
-                    icon: const Icon(Icons.copy_all, size: 16.0),
-                    label: const Text('复制所有', style: TextStyle(fontSize: 12.0)),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                    ),
+                  Row(
+                    children: <Widget>[
+                      ElevatedButton.icon(
+                        onPressed: () => controller.exportAllApiFiles(),
+                        icon: const Icon(Icons.download, size: 16.0),
+                        label: const Text('下载所有', style: TextStyle(fontSize: 12.0)),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                        ),
+                      ),
+                      const SizedBox(width: 8.0),
+                      ElevatedButton.icon(
+                        onPressed: () => controller.copyAllApiCode(),
+                        icon: const Icon(Icons.copy_all, size: 16.0),
+                        label: const Text('复制所有', style: TextStyle(fontSize: 12.0)),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -64,6 +77,10 @@ class ApiResultPage extends StatelessWidget {
                         result.requestModelCode,
                         result.requestFileName,
                       ),
+                      onDownload: () => controller.downloadFile(
+                        result.requestModelCode,
+                        result.requestFileName,
+                      ),
                     ),
                     const SizedBox(height: 10.0),
 
@@ -76,6 +93,10 @@ class ApiResultPage extends StatelessWidget {
                           result.responseModelCode,
                           result.responseFileName,
                         ),
+                        onDownload: () => controller.downloadFile(
+                          result.responseModelCode,
+                          result.responseFileName,
+                        ),
                       ),
                       const SizedBox(height: 10.0),
                     ],
@@ -85,6 +106,10 @@ class ApiResultPage extends StatelessWidget {
                       title: result.apiFileName,
                       code: result.apiMethodCode,
                       onCopy: () => controller.copyFileCode(
+                        result.apiMethodCode,
+                        result.apiFileName,
+                      ),
+                      onDownload: () => controller.downloadFile(
                         result.apiMethodCode,
                         result.apiFileName,
                       ),
@@ -103,6 +128,7 @@ class ApiResultPage extends StatelessWidget {
     required String title,
     required String code,
     required VoidCallback onCopy,
+    required VoidCallback onDownload,
   }) {
     return Card(
       elevation: 1.0,
@@ -133,13 +159,26 @@ class ApiResultPage extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.copy, size: 16.0),
-                  onPressed: onCopy,
-                  tooltip: '复制代码',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  visualDensity: VisualDensity.compact,
+                Row(
+                  children: <Widget>[
+                    IconButton(
+                      icon: const Icon(Icons.download, size: 16.0),
+                      onPressed: onDownload,
+                      tooltip: '下载文件',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    const SizedBox(width: 8.0),
+                    IconButton(
+                      icon: const Icon(Icons.copy, size: 16.0),
+                      onPressed: onCopy,
+                      tooltip: '复制代码',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
                 ),
               ],
             ),

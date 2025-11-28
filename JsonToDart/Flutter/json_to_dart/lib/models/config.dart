@@ -68,6 +68,13 @@ class ConfigSetting extends Setting<ConfigSetting> {
 
   @HiveField(21)
   RxBool deepCopy = false.obs;
+
+  @HiveField(22)
+  List<String> defaultImports = <String>[
+    'package:xjj_app_common/model/parse_nullable_resp.dart',
+    'package:xjj_app_common/model/response/base_resp.dart',
+  ];
+
   @override
   Future<void> init({
     TypeAdapter<ConfigSetting>? adapter,

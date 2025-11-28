@@ -62,6 +62,9 @@ class JsonTreeHeader extends StatelessWidget {
               return DropdownButton<PropertyAccessorType>(
                 value: ConfigSetting().propertyAccessorType.value,
                 underline: Container(),
+                isDense: true,
+                isExpanded: true,
+                style: const TextStyle(fontSize: 12),
                 items: PropertyAccessorType.values
                     .where((PropertyAccessorType element) =>
                         element == PropertyAccessorType.none ||
@@ -70,11 +73,14 @@ class JsonTreeHeader extends StatelessWidget {
                         (PropertyAccessorType f) =>
                             DropdownMenuItem<PropertyAccessorType>(
                               value: f,
-                              child: Text(f
-                                  .toString()
-                                  .replaceAll('PropertyAccessorType.', '')
-                                  .replaceAll('_', '')
-                                  .toLowerCase()),
+                              child: Text(
+                                f
+                                    .toString()
+                                    .replaceAll('PropertyAccessorType.', '')
+                                    .replaceAll('_', '')
+                                    .toLowerCase(),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ))
                     .toList(),
                 onChanged: (PropertyAccessorType? value) {
