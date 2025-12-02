@@ -88,11 +88,14 @@ class ApiCodeGenerator {
     // 生成 URL 常量注释和定义
     sb.writeLine('/// $comment ${apiConfig.httpMethod.value.methodName}');
 
+    // 生成 URL 常量名称 (确保以 Url 结尾)
+    final String urlConstantName = _getUrlConstantName(methodName);
+
     // 生成 URL 常量
     if (apiConfig.baseUrl.value.isNotEmpty) {
-      sb.writeLine("static final String $methodName = _baseUrl + '${apiConfig.apiUrl.value}';");
+      sb.writeLine("static final String $urlConstantName = _baseUrl + '${apiConfig.apiUrl.value}';");
     } else {
-      sb.writeLine("static final String $methodName = '${apiConfig.apiUrl.value}';");
+      sb.writeLine("static final String $urlConstantName = '${apiConfig.apiUrl.value}';");
     }
     sb.writeLine('');
 
@@ -101,9 +104,29 @@ class ApiCodeGenerator {
       sb,
       apiConfig,
       methodName,
+      urlConstantName,
       requestClassName,
       responseClassName,
     );
+  }
+
+  /// 获取 URL 常量名称 (确保以 Url 结尾)
+  static String _getUrlConstantName(String methodName) {
+    // 移除可能的 Req 或 req 后缀
+    String baseName = methodName;
+    if (baseName.endsWith('Req')) {
+      baseName = baseName.substring(0, baseName.length - 3);
+    } else if (baseName.endsWith('req')) {
+      baseName = baseName.substring(0, baseName.length - 3);
+    }
+
+    // 如果已经以 Url 结尾,直接返回
+    if (baseName.endsWith('Url')) {
+      return baseName;
+    }
+
+    // 否则添加 Url 后缀
+    return '${baseName}Url';
   }
 
   /// 获取方法注释
@@ -121,6 +144,7 @@ class ApiCodeGenerator {
     CustomStringBuffer sb,
     ApiConfig apiConfig,
     String methodName,
+    String urlConstantName,
     String requestClassName,
     String responseClassName,
   ) {
@@ -129,19 +153,19 @@ class ApiCodeGenerator {
     switch (httpMethod) {
       case HttpMethod.post:
         _generatePostMethod(
-            sb, methodName, requestClassName, responseClassName, apiConfig);
+            sb, methodName, urlConstantName, requestClassName, responseClassName, apiConfig);
         break;
       case HttpMethod.get:
         _generateGetMethod(
-            sb, methodName, requestClassName, responseClassName, apiConfig);
+            sb, methodName, urlConstantName, requestClassName, responseClassName, apiConfig);
         break;
       case HttpMethod.put:
         _generatePutMethod(
-            sb, methodName, requestClassName, responseClassName, apiConfig);
+            sb, methodName, urlConstantName, requestClassName, responseClassName, apiConfig);
         break;
       case HttpMethod.delete:
         _generateDeleteMethod(
-            sb, methodName, requestClassName, responseClassName, apiConfig);
+            sb, methodName, urlConstantName, requestClassName, responseClassName, apiConfig);
         break;
     }
   }
@@ -150,6 +174,7 @@ class ApiCodeGenerator {
   static void _generatePostMethod(
     CustomStringBuffer sb,
     String methodName,
+    String urlConstantName,
     String requestClassName,
     String responseClassName,
     ApiConfig apiConfig,
@@ -164,7 +189,7 @@ class ApiCodeGenerator {
         sb.writeLine('static Future<$responseClassName?> $actualMethodName({');
         sb.writeLine('  required $requestClassName req,');
         sb.writeLine('}) async {');
-        sb.writeLine('  var response = await MyHttpUtil().post($methodName,');
+        sb.writeLine('  var response = await MyHttpUtil().post($urlConstantName,');
         sb.writeLine(
             '      data: req.toJson()..removeWhere((key, value) => value == null));');
         sb.writeLine('  return $responseClassName.fromJson(response);');
@@ -174,7 +199,7 @@ class ApiCodeGenerator {
         sb.writeLine('static Future<dynamic> $actualMethodName({');
         sb.writeLine('  required $requestClassName req,');
         sb.writeLine('}) async {');
-        sb.writeLine('  return await MyHttpUtil().post($methodName,');
+        sb.writeLine('  return await MyHttpUtil().post($urlConstantName,');
         sb.writeLine(
             '      data: req.toJson()..removeWhere((key, value) => value == null));');
         sb.writeLine('}');
@@ -186,7 +211,7 @@ class ApiCodeGenerator {
       sb.writeLine('}) async {');
       sb.writeLine('  bool result = await MyActionUtil.form().handle(');
       sb.writeLine('    action: () async {');
-      sb.writeLine('      return await MyHttpUtil().post($methodName,');
+      sb.writeLine('      return await MyHttpUtil().post($urlConstantName,');
       sb.writeLine(
           '          data: req.toJson()..removeWhere((key, value) => value == null));');
       sb.writeLine('    },');
@@ -213,6 +238,7 @@ class ApiCodeGenerator {
   static void _generateGetMethod(
     CustomStringBuffer sb,
     String methodName,
+    String urlConstantName,
     String requestClassName,
     String responseClassName,
     ApiConfig apiConfig,
@@ -228,7 +254,7 @@ class ApiCodeGenerator {
         sb.writeLine('  required String? id,');
         sb.writeLine('}) async {');
         sb.writeLine('  var response = await MyHttpUtil().get(');
-        sb.writeLine('    sprintf($methodName, [id]),');
+        sb.writeLine('    sprintf($urlConstantName, [id]),');
         sb.writeLine('  );');
         sb.writeLine('  return $responseClassName.fromJson(response);');
         sb.writeLine('}');
@@ -240,7 +266,7 @@ class ApiCodeGenerator {
         sb.writeLine('  var response = await MyActionUtil.form().handle(');
         sb.writeLine('    action: () async {');
         sb.writeLine('      return await MyHttpUtil().get(');
-        sb.writeLine('        sprintf($methodName, [id]),');
+        sb.writeLine('        sprintf($urlConstantName, [id]),');
         sb.writeLine('      );');
         sb.writeLine('    },');
         sb.writeLine("    loadText: '${apiConfig.formLoadText.value}',");
@@ -258,7 +284,7 @@ class ApiCodeGenerator {
         sb.writeLine('  required $requestClassName req,');
         sb.writeLine('}) async {');
         sb.writeLine('  var response = await MyHttpUtil().get(');
-        sb.writeLine('    $methodName,');
+        sb.writeLine('    $urlConstantName,');
         sb.writeLine('    queryParameters: req.toJson()..removeWhere((key, value) => value == null),');
         sb.writeLine('  );');
         sb.writeLine('  return $responseClassName.fromJson(response);');
@@ -271,7 +297,7 @@ class ApiCodeGenerator {
         sb.writeLine('  var response = await MyActionUtil.form().handle(');
         sb.writeLine('    action: () async {');
         sb.writeLine('      return await MyHttpUtil().get(');
-        sb.writeLine('        $methodName,');
+        sb.writeLine('        $urlConstantName,');
         sb.writeLine('        queryParameters: req.toJson()..removeWhere((key, value) => value == null),');
         sb.writeLine('      );');
         sb.writeLine('    },');
@@ -289,6 +315,7 @@ class ApiCodeGenerator {
   static void _generatePutMethod(
     CustomStringBuffer sb,
     String methodName,
+    String urlConstantName,
     String requestClassName,
     String responseClassName,
     ApiConfig apiConfig,
@@ -303,7 +330,7 @@ class ApiCodeGenerator {
         sb.writeLine('static Future<$responseClassName?> $actualMethodName({');
         sb.writeLine('  required $requestClassName req,');
         sb.writeLine('}) async {');
-        sb.writeLine('  var response = await MyHttpUtil().put($methodName,');
+        sb.writeLine('  var response = await MyHttpUtil().put($urlConstantName,');
         sb.writeLine(
             '      data: req.toJson()..removeWhere((key, value) => value == null));');
         sb.writeLine('  return $responseClassName.fromJson(response);');
@@ -313,7 +340,7 @@ class ApiCodeGenerator {
         sb.writeLine('static Future<dynamic> $actualMethodName({');
         sb.writeLine('  required $requestClassName req,');
         sb.writeLine('}) async {');
-        sb.writeLine('  return await MyHttpUtil().put($methodName,');
+        sb.writeLine('  return await MyHttpUtil().put($urlConstantName,');
         sb.writeLine(
             '      data: req.toJson()..removeWhere((key, value) => value == null));');
         sb.writeLine('}');
@@ -325,7 +352,7 @@ class ApiCodeGenerator {
       sb.writeLine('}) async {');
       sb.writeLine('  bool result = await MyActionUtil.form().handle(');
       sb.writeLine('    action: () async {');
-      sb.writeLine('      return await MyHttpUtil().put($methodName,');
+      sb.writeLine('      return await MyHttpUtil().put($urlConstantName,');
       sb.writeLine(
           '          data: req.toJson()..removeWhere((key, value) => value == null));');
       sb.writeLine('    },');
@@ -342,6 +369,7 @@ class ApiCodeGenerator {
   static void _generateDeleteMethod(
     CustomStringBuffer sb,
     String methodName,
+    String urlConstantName,
     String requestClassName,
     String responseClassName,
     ApiConfig apiConfig,
@@ -358,7 +386,7 @@ class ApiCodeGenerator {
           sb.writeLine('  required String? id,');
           sb.writeLine('}) async {');
           sb.writeLine('  var response = await MyHttpUtil().delete(');
-          sb.writeLine('    sprintf($methodName, [id]),');
+          sb.writeLine('    sprintf($urlConstantName, [id]),');
           sb.writeLine('  );');
           sb.writeLine('  return $responseClassName.fromJson(response);');
           sb.writeLine('}');
@@ -367,7 +395,7 @@ class ApiCodeGenerator {
           sb.writeLine('  required String? id,');
           sb.writeLine('}) async {');
           sb.writeLine('  return await MyHttpUtil().delete(');
-          sb.writeLine('    sprintf($methodName, [id]),');
+          sb.writeLine('    sprintf($urlConstantName, [id]),');
           sb.writeLine('  );');
           sb.writeLine('}');
         }
@@ -379,7 +407,7 @@ class ApiCodeGenerator {
         sb.writeLine('  bool result = await MyActionUtil.form().handle(');
         sb.writeLine('    action: () async {');
         sb.writeLine('      return await MyHttpUtil().delete(');
-        sb.writeLine('        sprintf($methodName, [id]),');
+        sb.writeLine('        sprintf($urlConstantName, [id]),');
         sb.writeLine('      );');
         sb.writeLine('    },');
         sb.writeLine("    loadText: '${apiConfig.formLoadText.value}',");
@@ -397,14 +425,14 @@ class ApiCodeGenerator {
           sb.writeLine('static Future<$responseClassName?> $actualMethodName({');
           sb.writeLine('  required $requestClassName req,');
           sb.writeLine('}) async {');
-          sb.writeLine('  var response = await MyHttpUtil().delete($methodName);');
+          sb.writeLine('  var response = await MyHttpUtil().delete($urlConstantName);');
           sb.writeLine('  return $responseClassName.fromJson(response);');
           sb.writeLine('}');
         } else {
           sb.writeLine('static Future<dynamic> $actualMethodName({');
           sb.writeLine('  required $requestClassName req,');
           sb.writeLine('}) async {');
-          sb.writeLine('  return await MyHttpUtil().delete($methodName);');
+          sb.writeLine('  return await MyHttpUtil().delete($urlConstantName);');
           sb.writeLine('}');
         }
       } else {
@@ -414,7 +442,7 @@ class ApiCodeGenerator {
         sb.writeLine('}) async {');
         sb.writeLine('  bool result = await MyActionUtil.form().handle(');
         sb.writeLine('    action: () async {');
-        sb.writeLine('      return await MyHttpUtil().delete($methodName);');
+        sb.writeLine('      return await MyHttpUtil().delete($urlConstantName);');
         sb.writeLine('    },');
         sb.writeLine("    loadText: '${apiConfig.formLoadText.value}',");
         sb.writeLine("    successText: '${apiConfig.formSuccessText.value}',");

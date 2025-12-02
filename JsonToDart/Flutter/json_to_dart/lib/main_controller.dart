@@ -408,13 +408,20 @@ class MainController extends GetxController with JsonToDartControllerMixin {
     // (allProperties 和 allObjects 会在 formatJsonAndCreateDartObject 中清理)
     printedObjects.clear();
 
+    // 在解析 JSON 之前，先移除 validErrors 字段
+    jsonString = _removeValidErrorsFromJson(jsonString);
+
     text = jsonString;
     await formatJsonAndCreateDartObject();
     if (dartObject == null) {
       return null;
     }
     dartObject!.className = className;
-    // 移除 validErrors 字段
+
+    // 重命名嵌套类 (Data -> XxxData, Rows -> XxxModel)
+    _renameNestedClasses(dartObject!, className);
+
+    // 移除 validErrors 字段（双重保险）
     _removeValidErrorsField(dartObject!);
 
     // 清除所有对象的错误状态(重要:避免残留的错误状态影响生成)
@@ -426,7 +433,200 @@ class MainController extends GetxController with JsonToDartControllerMixin {
       prop.propertyError.clear();
     }
 
-    return generateDartCode(dartObject);
+    return _generateModelCodeWithoutHelpers(dartObject);
+  }
+
+  /// 从 JSON 字符串中移除 validErrors 字段
+  String _removeValidErrorsFromJson(String jsonString) {
+    try {
+      final dynamic jsonData = jsonDecode(jsonString);
+      if (jsonData is Map<String, dynamic>) {
+        // 移除顶层的 validErrors
+        jsonData.remove('validErrors');
+        jsonData.remove('validError');
+
+        // 递归移除嵌套对象中的 validErrors
+        _removeValidErrorsFromMap(jsonData);
+
+        return const JsonEncoder.withIndent('  ').convert(jsonData);
+      } else if (jsonData is List) {
+        // 如果是数组，处理每个元素
+        for (final dynamic item in jsonData) {
+          if (item is Map<String, dynamic>) {
+            item.remove('validErrors');
+            item.remove('validError');
+            _removeValidErrorsFromMap(item);
+          }
+        }
+        return const JsonEncoder.withIndent('  ').convert(jsonData);
+      }
+    } catch (e) {
+      // 如果解析失败，返回原始字符串
+      print('移除 validErrors 时出错: $e');
+    }
+    return jsonString;
+  }
+
+  /// 递归移除 Map 中的 validErrors 字段
+  void _removeValidErrorsFromMap(Map<String, dynamic> map) {
+    map.remove('validErrors');
+    map.remove('validError');
+
+    for (final dynamic value in map.values) {
+      if (value is Map<String, dynamic>) {
+        _removeValidErrorsFromMap(value);
+      } else if (value is List) {
+        for (final dynamic item in value) {
+          if (item is Map<String, dynamic>) {
+            _removeValidErrorsFromMap(item);
+          }
+        }
+      }
+    }
+  }
+
+  /// 重命名嵌套类 (Data -> XxxData, Rows -> XxxModel)
+  void _renameNestedClasses(DartObject rootObject, String rootClassName) {
+    // 获取根类名的基础部分（移除 Resp/Req 后缀）
+    String baseName = rootClassName;
+    if (baseName.endsWith('Resp')) {
+      baseName = baseName.substring(0, baseName.length - 4);
+    } else if (baseName.endsWith('Req')) {
+      baseName = baseName.substring(0, baseName.length - 3);
+    }
+
+    // 先移除 ValidErrors 类，再进行重命名
+    allObjects.removeWhere((DartObject obj) =>
+        obj.className == 'ValidErrors' ||
+        obj.className == 'ValidError' ||
+        obj.className.toLowerCase().contains('validerror'));
+
+    // 遍历所有对象并重命名
+    for (final DartObject obj in allObjects) {
+      if (obj.className == 'Data') {
+        obj.className = '${baseName}Data';
+      } else if (obj.className == 'Rows') {
+        obj.className = '${baseName}Model';
+      }
+    }
+  }
+
+  /// 生成 Model 代码(不包含辅助函数)
+  String? _generateModelCodeWithoutHelpers(DartObject? dartObject) {
+    printedObjects.clear();
+
+    if (dartObject != null) {
+      // 再次确保移除 ValidErrors 类和相关属性（防止在 toString 生成时被包含）
+      allObjects.removeWhere((DartObject obj) =>
+          obj.className == 'ValidErrors' ||
+          obj.className == 'ValidError' ||
+          obj.className.toLowerCase().contains('validerror'));
+
+      final DartObject? errorObject = allObjects.firstOrNullWhere(
+          (DartObject element) => element.hasClassError || element.hasPropertyError);
+      if (errorObject != null) {
+        showAlertDialog(
+            errorObject.classError.join('\n') + '\n' + errorObject.propertyError.join('\n'));
+        return null;
+      }
+
+      final DartProperty? errorProperty =
+          allProperties.firstOrNullWhere((DartProperty element) => element.hasPropertyError);
+
+      if (errorProperty != null) {
+        showAlertDialog(errorProperty.propertyError.join('\n'));
+        return null;
+      }
+
+      final CustomStringBuffer sb = CustomStringBuffer();
+      try {
+        if (ConfigSetting().fileHeaderInfo.isNotEmpty) {
+          String info = ConfigSetting().fileHeaderInfo;
+          //[Date MM-dd HH:mm]
+          try {
+            int start = info.indexOf('[Date');
+            final int startIndex = start;
+            if (start >= 0) {
+              start = start + '[Date'.length;
+              final int end = info.indexOf(']', start);
+              if (end >= start) {
+                String format = info.substring(start, end - start).trim();
+
+                final String replaceString = info.substring(startIndex, end - startIndex + 1);
+                if (format == '') {
+                  format = 'yyyy MM-dd';
+                }
+
+                info = info.replaceAll(replaceString, DateFormat(format).format(DateTime.now()));
+              }
+            }
+          } catch (e) {
+            showAlertDialog(appLocalizations.timeFormatError, Icons.error);
+          }
+
+          sb.writeLine(info);
+        }
+
+        sb.writeLine(DartHelper.jsonImport);
+
+        // 添加默认导入 (仅用于 Model)
+        for (final String defaultImport in ConfigSetting().defaultImports) {
+          if (defaultImport.trim().isNotEmpty) {
+            sb.writeLine('import \'$defaultImport\';');
+          }
+        }
+
+        // API Model 不添加辅助函数 (tryCatch, FFConvert, asT)
+        // 这些函数应该由用户在单独的工具类中定义
+
+        sb.writeLine(dartObject.toString());
+        String result = sb.toString();
+
+        // 后处理：移除 ValidErrors 类的定义（如果还存在）
+        result = _removeValidErrorsClassFromCode(result);
+
+        final DartFormatter formatter = DartFormatter(
+          languageVersion: DartFormatter.latestLanguageVersion,
+        );
+
+        result = formatter.format(result);
+
+        return result;
+      } catch (e, stack) {
+        print('$e');
+        print('$stack');
+        showAlertDialog(appLocalizations.generateFailed, Icons.error);
+        Clipboard.setData(ClipboardData(text: '$e\n$stack'));
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /// 从生成的代码中移除 ValidErrors 类定义
+  String _removeValidErrorsClassFromCode(String code) {
+    // 使用正则表达式匹配并移除整个 ValidErrors 类
+    final RegExp validErrorsClassPattern = RegExp(
+      r'class\s+ValidErrors?\s*\{[^}]*\}(?:\s*\n)*',
+      multiLine: true,
+      dotAll: true,
+    );
+
+    // 更精确的正则：匹配完整的类定义（包括所有方法）
+    final RegExp validErrorsFullClassPattern = RegExp(
+      r'class\s+ValidErrors?\s*\{[\s\S]*?\n\}\s*(?=\nclass|\n*$)',
+      multiLine: true,
+    );
+
+    String result = code;
+
+    // 先尝试精确匹配
+    result = result.replaceAll(validErrorsFullClassPattern, '');
+
+    // 如果还有残留，使用简单匹配
+    result = result.replaceAll(validErrorsClassPattern, '');
+
+    return result;
   }
 
   /// 复制所有 API 代码到剪贴板
@@ -484,7 +684,7 @@ class MainController extends GetxController with JsonToDartControllerMixin {
     }
 
     int successCount = 0;
-    int totalCount = apiCodeGenerationResult!.responseModelCode.isNotEmpty ? 3 : 2;
+    final int totalCount = apiCodeGenerationResult!.responseModelCode.isNotEmpty ? 3 : 2;
 
     // 下载请求参数 Model
     if (await downloadFile(
@@ -525,7 +725,7 @@ class MainController extends GetxController with JsonToDartControllerMixin {
     }
   }
 
-  /// 移除 validErrors 字段 (递归处理所有嵌套对象)
+  /// 移除 validErrors 字段和 ValidErrors 类 (递归处理所有嵌套对象)
   void _removeValidErrorsField(DartObject dartObject) {
     // 移除当前对象的 validErrors 属性
     dartObject.properties.removeWhere((DartProperty property) => property.name == 'validErrors');
@@ -538,10 +738,18 @@ class MainController extends GetxController with JsonToDartControllerMixin {
       }
     }
 
-    // 处理所有子对象
+    // 从 allObjects 中移除所有 ValidErrors 类
+    allObjects.removeWhere((DartObject obj) =>
+        obj.className == 'ValidErrors' ||
+        obj.className == 'ValidError' ||
+        obj.className.toLowerCase().contains('validerror'));
+
+    // 处理所有子对象,移除 validErrors 属性
     for (final DartObject child in allObjects) {
       if (child != dartObject) {
-        child.properties.removeWhere((DartProperty property) => property.name == 'validErrors');
+        child.properties.removeWhere((DartProperty property) =>
+            property.name == 'validErrors' ||
+            property.name == 'validError');
       }
     }
   }
