@@ -139,6 +139,9 @@ class ApiConfig {
   /// 是否启用 API 生成模式
   final RxBool apiMode = false.obs;
 
+  /// 是否启用 OpenAPI 批量导入模式
+  final RxBool openApiMode = false.obs;
+
   /// API URL
   final RxString apiUrl = ''.obs;
 

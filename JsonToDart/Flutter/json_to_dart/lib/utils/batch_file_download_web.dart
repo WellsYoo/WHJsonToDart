@@ -1,0 +1,12 @@
+/// Web 平台批量文件下载实现 (降级方案)
+/// 由于浏览器限制,无法创建文件夹,需要用户手动整理
+Future<String?> downloadBatchFiles({
+  required Map<String, String> reqFiles,
+  required Map<String, String> respFiles,
+  required String apiFileContent,
+  required String apiFileName,
+}) async {
+  // Web 环境下不支持批量下载到文件夹
+  // 返回 null 表示需要使用其他方式
+  return null;
+}

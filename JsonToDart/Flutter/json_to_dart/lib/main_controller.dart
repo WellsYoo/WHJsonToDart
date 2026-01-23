@@ -436,6 +436,11 @@ class MainController extends GetxController with JsonToDartControllerMixin {
     return _generateModelCodeWithoutHelpers(dartObject);
   }
 
+  /// 生成单个 Model 代码的公共方法 (供批量生成器使用)
+  Future<String?> generateModelCodeAsync(String jsonString, String className) async {
+    return await _generateModelCode(jsonString, className);
+  }
+
   /// 从 JSON 字符串中移除 validErrors 字段
   String _removeValidErrorsFromJson(String jsonString) {
     try {

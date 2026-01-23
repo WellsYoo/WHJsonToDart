@@ -14,6 +14,7 @@ import 'pages/api_result_page.dart';
 import 'pages/json_text_field.dart';
 import 'pages/json_tree.dart';
 import 'pages/json_tree_header.dart';
+import 'pages/openapi_import_page.dart';
 import 'pages/setting.dart';
 import 'style/color.dart';
 import 'widget/drag_icon.dart';
@@ -63,6 +64,11 @@ class _MyHomePageState extends State<MyHomePage> {
       backgroundColor: ColorPlate.white,
       body: GetBuilder<MainController>(
         builder: (MainController c) {
+          // OpenAPI 批量导入模式
+          if (c.apiConfig.openApiMode.value) {
+            return const OpenApiImportPage();
+          }
+
           // API 模式
           if (c.apiConfig.apiMode.value) {
             return Row(

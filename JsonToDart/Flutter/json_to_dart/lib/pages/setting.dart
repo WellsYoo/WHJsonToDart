@@ -30,6 +30,14 @@ class SettingWidget extends StatelessWidget {
           },
         ),
         TapButton(
+          title: 'OpenAPI 批量导入',
+          icon: Icons.upload_file,
+          onPressed: () {
+            controller.apiConfig.openApiMode.value = true;
+            controller.update();
+          },
+        ),
+        TapButton(
           title: appLocalizations.formatButtonLabel,
           icon: Icons.format_align_left,
           onPressed: () {
