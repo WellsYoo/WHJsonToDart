@@ -273,9 +273,10 @@ class MainController extends GetxController with JsonToDartControllerMixin {
   }
 
   void selectAll() {
+    final int length = text.length;
     _textEditingController
       ..text = text
-      ..selection = TextSelection(baseOffset: 0, extentOffset: text.length - 1);
+      ..selection = TextSelection(baseOffset: 0, extentOffset: length);
   }
 
   void updateNameByNamingConventionsType() {
@@ -761,14 +762,8 @@ class MainController extends GetxController with JsonToDartControllerMixin {
 }
 
 String? formatJson(dynamic jsonData) {
-  Map<String, dynamic>? jsonObject;
-  if (jsonData is Map) {
-    jsonObject = jsonData as Map<String, dynamic>;
-  } else if (jsonData is List) {
-    jsonObject = jsonData.first as Map<String, dynamic>;
-  }
-  if (jsonObject != null) {
-    return const JsonEncoder.withIndent('  ').convert(jsonObject);
+  if (jsonData is Map || jsonData is List) {
+    return const JsonEncoder.withIndent('  ').convert(jsonData);
   }
   return null;
 }

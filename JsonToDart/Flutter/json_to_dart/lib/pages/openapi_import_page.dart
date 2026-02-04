@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,11 +8,11 @@ import 'package:get/get.dart';
 import 'package:json_to_dart/main_controller.dart';
 import 'package:json_to_dart/models/openapi_document.dart';
 import 'package:json_to_dart/utils/batch_api_generator.dart';
-import 'package:json_to_dart/utils/openapi_parser.dart';
-import 'package:json_to_dart/utils/file_download_stub.dart'
-    if (dart.library.html) 'package:json_to_dart/utils/file_download_web.dart' as file_download;
 import 'package:json_to_dart/utils/batch_file_download_stub.dart'
     if (dart.library.html) 'package:json_to_dart/utils/batch_file_download_web.dart' as batch_download;
+import 'package:json_to_dart/utils/file_download_stub.dart'
+    if (dart.library.html) 'package:json_to_dart/utils/file_download_web.dart' as file_download;
+import 'package:json_to_dart/utils/openapi_parser.dart';
 
 /// OpenAPI 批量导入页面
 class OpenApiImportPage extends StatefulWidget {

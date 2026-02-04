@@ -47,6 +47,8 @@ class ErrorCheckerTextEditingController extends TextEditingController {
   final DiffMatchPatch dmp = DiffMatchPatch()
     ..diffTimeout = 1
     ..diffEditCost = 4;
+  static final RegExp _firstCharPattern = RegExp('[a-zA-Z]');
+  static final RegExp _restCharPattern = RegExp('[a-zA-Z0-9]');
   @override
   TextSpan buildTextSpan(
       {required BuildContext context,
@@ -59,15 +61,16 @@ class ErrorCheckerTextEditingController extends TextEditingController {
       return errorTextSpan(style);
     }
 
-    String pass = '';
+    final StringBuffer passBuffer = StringBuffer();
     for (int i = 0; i < text.length; i++) {
       final String char = text[i];
       if (char == '_' ||
-          (pass.isEmpty ? RegExp('[a-zA-Z]') : RegExp('[a-zA-Z0-9]'))
+          (passBuffer.isEmpty ? _firstCharPattern : _restCharPattern)
               .hasMatch(char)) {
-        pass += char;
+        passBuffer.write(char);
       }
     }
+    final String pass = passBuffer.toString();
     if (pass != text) {
       final List<Diff> diffs = dmp.diff(text, pass);
       dmp.diffCleanupSemantic(diffs);

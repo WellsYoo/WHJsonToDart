@@ -80,15 +80,21 @@ class ConfigSetting extends Setting<ConfigSetting> {
     TypeAdapter<ConfigSetting>? adapter,
     ConfigSetting? defaultValue,
   }) async {
-    Hive.registerAdapter(RxTypeAdapter<PropertyAccessorType>(5));
-    Hive.registerAdapter(RxTypeAdapter<PropertyNamingConventionsType>(6));
-    Hive.registerAdapter(RxTypeAdapter<PropertyNameSortingType>(7));
-    Hive.registerAdapter(RxTypeAdapter<Locale>(8));
-    Hive.registerAdapter(RxTypeAdapter<int>(9));
-    Hive.registerAdapter(RxTypeAdapter<String>(10));
-    Hive.registerAdapter(RxTypeAdapter<bool>(11));
-    Hive.registerAdapter(RxTypeAdapter<EqualityMethodType>(12));
+    _registerAdapterIfNeeded(RxTypeAdapter<PropertyAccessorType>(5));
+    _registerAdapterIfNeeded(RxTypeAdapter<PropertyNamingConventionsType>(6));
+    _registerAdapterIfNeeded(RxTypeAdapter<PropertyNameSortingType>(7));
+    _registerAdapterIfNeeded(RxTypeAdapter<Locale>(8));
+    _registerAdapterIfNeeded(RxTypeAdapter<int>(9));
+    _registerAdapterIfNeeded(RxTypeAdapter<String>(10));
+    _registerAdapterIfNeeded(RxTypeAdapter<bool>(11));
+    _registerAdapterIfNeeded(RxTypeAdapter<EqualityMethodType>(12));
     await super.init(adapter: ConfigSettingAdapter(), defaultValue: this);
+  }
+
+  void _registerAdapterIfNeeded<T>(TypeAdapter<T> adapter) {
+    if (!Hive.isAdapterRegistered(adapter.typeId)) {
+      Hive.registerAdapter<T>(adapter);
+    }
   }
 }
 
@@ -164,7 +170,9 @@ class RxTypeAdapter<T> extends TypeAdapter<Rx<T>> {
 class Setting<T extends HiveObject> extends HiveObject {
   @mustCallSuper
   Future<void> init({TypeAdapter<T>? adapter, T? defaultValue}) async {
-    Hive.registerAdapter<T>(adapter!);
+    if (!Hive.isAdapterRegistered(adapter!.typeId)) {
+      Hive.registerAdapter<T>(adapter);
+    }
     final String tType = 'JsonToDart' + runtimeType.toString();
     final Box<T> box = await Hive.openBox<T>(tType);
     if ((box.isEmpty || box.getAt(0) == null) && defaultValue != null) {
