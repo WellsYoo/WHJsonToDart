@@ -9,7 +9,8 @@ import 'package:json_to_dart/main_controller.dart';
 import 'package:json_to_dart/models/openapi_document.dart';
 import 'package:json_to_dart/utils/batch_api_generator.dart';
 import 'package:json_to_dart/utils/batch_file_download_stub.dart'
-    if (dart.library.html) 'package:json_to_dart/utils/batch_file_download_web.dart' as batch_download;
+    if (dart.library.html) 'package:json_to_dart/utils/batch_file_download_web.dart'
+    as batch_download;
 import 'package:json_to_dart/utils/file_download_stub.dart'
     if (dart.library.html) 'package:json_to_dart/utils/file_download_web.dart' as file_download;
 import 'package:json_to_dart/utils/openapi_parser.dart';
@@ -38,16 +39,11 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // 顶部：标题栏
           _buildHeader(),
           const SizedBox(height: 16.0),
-
-          // 主体内容
           Expanded(
             child: _parser == null ? _buildUploadArea() : _buildEndpointsList(),
           ),
-
-          // 底部按钮
           if (_parser != null && _endpoints != null) ...<Widget>[
             const SizedBox(height: 16.0),
             _buildBottomActions(),
@@ -57,7 +53,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     );
   }
 
-  // 头部标题栏
   Widget _buildHeader() {
     return Row(
       children: <Widget>[
@@ -93,7 +88,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     );
   }
 
-  // 上传区域
   Widget _buildUploadArea() {
     return Center(
       child: Container(
@@ -136,19 +130,17 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     );
   }
 
-  // 选择文件
   Future<void> _pickFile() async {
     try {
-      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      final FilePickerResult? result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: <String>['json'],
-        withData: true, // Web 环境需要 withData
+        withData: true,
       );
 
       if (result != null && result.files.isNotEmpty) {
         final PlatformFile file = result.files.first;
         if (file.bytes != null) {
-          // 使用 UTF-8 解码,避免中文乱码
           final String jsonString = utf8.decode(file.bytes!, allowMalformed: true);
           _parseDocument(jsonString);
         }
@@ -160,17 +152,15 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     }
   }
 
-  // 解析文档
   void _parseDocument(String jsonString) {
     try {
       final OpenApiParser parser = OpenApiParser.fromJson(jsonString);
-      final List<ParsedApiEndpoint> endpoints = parser.parseEndpoints(includeDeprecated: _includeDeprecated);
+      final List<ParsedApiEndpoint> endpoints =
+          parser.parseEndpoints(includeDeprecated: _includeDeprecated);
 
       setState(() {
         _parser = parser;
         _endpoints = endpoints;
-
-        // 初始化默认值
         _apiClassNameInput = _toPascalCase(parser.document.info.title) + 'Api';
       });
 
@@ -184,20 +174,14 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     }
   }
 
-  // 接口列表
   Widget _buildEndpointsList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        // 配置区域
         _buildConfigSection(),
         const SizedBox(height: 16.0),
-
-        // 过滤和操作栏
         _buildFilterBar(),
         const SizedBox(height: 12.0),
-
-        // 接口列表
         Expanded(
           child: _buildEndpointsTable(),
         ),
@@ -205,7 +189,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     );
   }
 
-  // 配置区域
   Widget _buildConfigSection() {
     return Container(
       padding: const EdgeInsets.all(14.0),
@@ -308,9 +291,9 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     );
   }
 
-  // 过滤栏
   Widget _buildFilterBar() {
-    final int selectedCount = _endpoints?.where((ParsedApiEndpoint e) => e.selected.value).length ?? 0;
+    final int selectedCount =
+        _endpoints?.where((ParsedApiEndpoint e) => e.selected.value).length ?? 0;
 
     return Row(
       children: <Widget>[
@@ -328,13 +311,13 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
           ),
         ),
         const Spacer(),
-        // 包含废弃接口
         InkWell(
           onTap: () {
             setState(() {
               _includeDeprecated = !_includeDeprecated;
               if (_parser != null) {
-                _endpoints = _parser!.parseEndpoints(includeDeprecated: _includeDeprecated);
+                _endpoints =
+                    _parser!.parseEndpoints(includeDeprecated: _includeDeprecated);
               }
             });
           },
@@ -347,7 +330,8 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
                   setState(() {
                     _includeDeprecated = value ?? false;
                     if (_parser != null) {
-                      _endpoints = _parser!.parseEndpoints(includeDeprecated: _includeDeprecated);
+                      _endpoints =
+                          _parser!.parseEndpoints(includeDeprecated: _includeDeprecated);
                     }
                   });
                 },
@@ -359,7 +343,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
           ),
         ),
         const SizedBox(width: 12.0),
-        // 全选/取消全选
         TextButton.icon(
           onPressed: _toggleSelectAll,
           icon: const Icon(Icons.checklist, size: 16.0),
@@ -372,13 +355,13 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     );
   }
 
-  // 全选/取消全选
   void _toggleSelectAll() {
     if (_endpoints == null) {
       return;
     }
 
-    final bool allSelected = _endpoints!.every((ParsedApiEndpoint e) => e.selected.value);
+    final bool allSelected =
+        _endpoints!.every((ParsedApiEndpoint e) => e.selected.value);
 
     setState(() {
       for (final ParsedApiEndpoint endpoint in _endpoints!) {
@@ -387,7 +370,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     });
   }
 
-  // 接口表格
   Widget _buildEndpointsTable() {
     if (_endpoints == null || _endpoints!.isEmpty) {
       return Center(
@@ -413,7 +395,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     );
   }
 
-  // 接口列表项
   Widget _buildEndpointItem(ParsedApiEndpoint endpoint, int index) {
     return Obx(() {
       final bool isSelected = endpoint.selected.value;
@@ -448,7 +429,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
                 visualDensity: VisualDensity.compact,
               ),
               const SizedBox(width: 12.0),
-              // HTTP 方法标签
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                 decoration: BoxDecoration(
@@ -465,7 +445,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
                 ),
               ),
               const SizedBox(width: 12.0),
-              // 路径和摘要
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -513,7 +492,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
                 ),
               ),
               const SizedBox(width: 12.0),
-              // 方法名预览
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                 decoration: BoxDecoration(
@@ -536,7 +514,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     });
   }
 
-  // HTTP 方法颜色
   Color _getMethodColor(String method) {
     switch (method.toLowerCase()) {
       case 'get':
@@ -552,9 +529,9 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     }
   }
 
-  // 底部操作按钮
   Widget _buildBottomActions() {
-    final int selectedCount = _endpoints?.where((ParsedApiEndpoint e) => e.selected.value).length ?? 0;
+    final int selectedCount =
+        _endpoints?.where((ParsedApiEndpoint e) => e.selected.value).length ?? 0;
 
     return Row(
       children: <Widget>[
@@ -573,7 +550,10 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
           child: ElevatedButton.icon(
             onPressed: selectedCount == 0 ? null : _generateAndDownloadAll,
             icon: const Icon(Icons.download, size: 18.0),
-            label: const Text('生成并下载', style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.w600)),
+            label: const Text(
+              '生成并下载',
+              style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.w600),
+            ),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14.0),
             ),
@@ -583,7 +563,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     );
   }
 
-  // 生成并复制所有代码
   Future<void> _generateAndCopyAll() async {
     if (_parser == null || _endpoints == null) {
       return;
@@ -613,11 +592,9 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
       return;
     }
 
-    // 显示加载对话框
     SmartDialog.showLoading(msg: '正在生成代码...');
 
     try {
-      // 创建批量生成器
       final BatchApiCodeGenerator generator = BatchApiCodeGenerator(
         parser: _parser!,
         endpoints: selectedEndpoints,
@@ -626,10 +603,8 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
         modelGenerator: _controller.generateModelCodeAsync,
       );
 
-      // 批量生成
       final BatchApiCodeResult result = await generator.generateAll();
 
-      // 组装所有代码
       final StringBuffer allCode = StringBuffer();
       allCode.writeln('// ==================== Request Models ====================');
       allCode.writeln();
@@ -652,7 +627,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
       allCode.writeln('// File: ${result.apiFileName}');
       allCode.writeln(result.apiFileContent);
 
-      // 复制到剪贴板
       await Clipboard.setData(ClipboardData(text: allCode.toString()));
 
       SmartDialog.dismiss();
@@ -680,7 +654,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     }
   }
 
-  // 生成并下载所有文件
   Future<void> _generateAndDownloadAll() async {
     if (_parser == null || _endpoints == null) {
       return;
@@ -710,11 +683,9 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
       return;
     }
 
-    // 显示加载对话框
     SmartDialog.showLoading(msg: '正在生成代码...');
 
     try {
-      // 创建批量生成器
       final BatchApiCodeGenerator generator = BatchApiCodeGenerator(
         parser: _parser!,
         endpoints: selectedEndpoints,
@@ -723,36 +694,32 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
         modelGenerator: _controller.generateModelCodeAsync,
       );
 
-      // 批量生成
       final BatchApiCodeResult result = await generator.generateAll();
 
-      // 构建文件结构说明
       final StringBuffer readme = StringBuffer();
       readme.writeln('# API 代码生成结果');
       readme.writeln();
       readme.writeln('## 文件结构');
       readme.writeln('```');
-      readme.writeln('req/                  # 请求 Model 目录');
+      readme.writeln('${_buildExportRootName()}/');
+      readme.writeln('  req/                  # 请求 Model 目录');
       for (final String fileName in result.reqFiles.keys) {
-        readme.writeln('  $fileName');
+        readme.writeln('    $fileName');
       }
-      readme.writeln();
-      readme.writeln('resp/                 # 响应 Model 目录');
+      readme.writeln('  resp/                 # 响应 Model 目录');
       for (final String fileName in result.respFiles.keys) {
-        readme.writeln('  $fileName');
+        readme.writeln('    $fileName');
       }
-      readme.writeln();
-      readme.writeln('api/                  # API 方法目录');
-      readme.writeln('  ${result.apiFileName}');
+      readme.writeln('  api/                  # API 方法目录');
+      readme.writeln('    ${result.apiFileName}');
       readme.writeln('```');
       readme.writeln();
       readme.writeln('## 使用说明');
       readme.writeln('1. 将 req/ 目录下的文件复制到项目的 lib/model/req/ 目录');
       readme.writeln('2. 将 resp/ 目录下的文件复制到项目的 lib/model/resp/ 目录');
-      readme.writeln('3. 将 api/ 目录���的文件复制到项目的 lib/api/ 目录');
+      readme.writeln('3. 将 api/ 目录下的文件复制到项目的 lib/api/ 目录');
       readme.writeln('4. 根据需要调整 import 路径');
 
-      // 组装成一个 Markdown 文件供下载
       final StringBuffer allContent = StringBuffer();
       allContent.writeln(readme.toString());
       allContent.writeln();
@@ -787,7 +754,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
       allContent.writeln(result.apiFileContent);
       allContent.writeln('```');
 
-      // 复制到剪贴板
       await Clipboard.setData(ClipboardData(text: allContent.toString()));
 
       SmartDialog.dismiss();
@@ -796,7 +762,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
         return;
       }
 
-      // 显示预览对话框
       _showGeneratedCodePreview(result, allContent.toString());
     } catch (e) {
       SmartDialog.dismiss();
@@ -811,7 +776,6 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     }
   }
 
-  // 显示生成代码预览对话框
   void _showGeneratedCodePreview(BatchApiCodeResult result, String allContent) {
     showDialog(
       context: context,
@@ -861,9 +825,7 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
                         ),
                       ),
                       const SizedBox(height: 8.0),
-                      Text('• 请求 Model: ${result.reqFiles.length} 个'),
-                      Text('• 响应 Model: ${result.respFiles.length} 个'),
-                      Text('• API 方法: ${_endpoints!.where((ParsedApiEndpoint e) => e.selected.value).length} 个'),
+                      Text(_buildGeneratedSummary(result)),
                       const SizedBox(height: 8.0),
                       const Text(
                         '✓ 所有代码已复制到剪贴板',
@@ -925,9 +887,8 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () async {
-                          // 下载为 Markdown 文件
                           final String fileName =
-                              '${_apiClassNameInput.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}_generated_${DateTime.now().millisecondsSinceEpoch}.md';
+                              '${_buildExportRootName()}_generated_${DateTime.now().millisecondsSinceEpoch}.md';
                           await file_download.downloadFile(allContent, fileName);
                           if (!context.mounted) {
                             return;
@@ -937,7 +898,7 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
                           );
                         },
                         icon: const Icon(Icons.download, size: 18.0),
-                        label: const Text('下载 MD'),
+                        label: const Text('下载目录说明 MD'),
                       ),
                     ),
                     const SizedBox(width: 12.0),
@@ -945,7 +906,7 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
                       child: OutlinedButton.icon(
                         onPressed: () => _downloadSeparateFiles(result),
                         icon: const Icon(Icons.folder_zip, size: 18.0),
-                        label: const Text('分文件下载'),
+                        label: const Text('导出分目录文件'),
                       ),
                     ),
                     const SizedBox(width: 12.0),
@@ -966,25 +927,24 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     );
   }
 
-  // 分别下载 req、resp、api 文件
   Future<void> _downloadSeparateFiles(BatchApiCodeResult result) async {
     try {
-      // 尝试使用批量下载功能 (macOS/Desktop)
       final String? outputDir = await batch_download.downloadBatchFiles(
         reqFiles: result.reqFiles,
         respFiles: result.respFiles,
         apiFileContent: result.apiFileContent,
         apiFileName: result.apiFileName,
+        exportRootName: _buildExportRootName(),
       );
 
       if (outputDir != null) {
-        // macOS/Desktop 成功
         if (!mounted) {
           return;
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('已保存到: $outputDir\n'
+                '目录结构: req/、resp/、api/\n'
                 '包含: req/ (${result.reqFiles.length}个), '
                 'resp/ (${result.respFiles.length}个), '
                 'api/ (1个)'),
@@ -997,24 +957,20 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
       // 降级到逐个下载 (Web)
     }
 
-    // Web 环境 - 逐个下载
     int downloadCount = 0;
 
-    // 下载所有请求 Model
     for (final MapEntry<String, String> entry in result.reqFiles.entries) {
       await file_download.downloadFile(entry.value, entry.key);
       downloadCount++;
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
 
-    // 下载所有响应 Model
     for (final MapEntry<String, String> entry in result.respFiles.entries) {
       await file_download.downloadFile(entry.value, entry.key);
       downloadCount++;
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
 
-    // 下载 API 文件
     await file_download.downloadFile(result.apiFileContent, result.apiFileName);
     downloadCount++;
 
@@ -1025,10 +981,32 @@ class _OpenApiImportPageState extends State<OpenApiImportPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('已下载 $downloadCount 个文件\n'
-            '提示: 请手动整理到 req/、resp/、api/ 文件夹'),
+            '提示: 请手动整理到 ${_buildExportRootName()}/req、resp、api 文件夹'),
         duration: const Duration(seconds: 5),
       ),
     );
+  }
+
+  String _buildGeneratedSummary(BatchApiCodeResult result) {
+    final StringBuffer buffer = StringBuffer();
+    buffer.writeln('请求 Model: ${result.reqFiles.length} 个');
+    buffer.writeln('响应 Model: ${result.respFiles.length} 个');
+    buffer.writeln(
+      'API 方法: ${_endpoints!.where((ParsedApiEndpoint e) => e.selected.value).length} 个',
+    );
+    if (result.skippedReqModels.isNotEmpty) {
+      buffer.writeln('未生成请求 Model: ${result.skippedReqModels.join(', ')}');
+    }
+    if (result.skippedRespModels.isNotEmpty) {
+      buffer.writeln('未生成响应 Model: ${result.skippedRespModels.join(', ')}');
+    }
+    return buffer.toString().trimRight();
+  }
+
+  String _buildExportRootName() {
+    final String sanitized =
+        _apiClassNameInput.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    return sanitized.isEmpty ? 'openapi_export' : sanitized;
   }
 
   String _toPascalCase(String input) {

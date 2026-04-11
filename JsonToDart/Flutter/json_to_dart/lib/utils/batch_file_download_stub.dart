@@ -9,10 +9,10 @@ Future<String?> downloadBatchFiles({
   required Map<String, String> respFiles,
   required String apiFileContent,
   required String apiFileName,
+  required String exportRootName,
 }) async {
   try {
-    // 让用户选择保存目录
-    final String? outputDir = await FilePicker.platform.getDirectoryPath(
+    final String? outputDir = await FilePicker.getDirectoryPath(
       dialogTitle: '选择保存目录',
     );
 
@@ -20,32 +20,30 @@ Future<String?> downloadBatchFiles({
       return null;
     }
 
-    // 创建三个子目录
-    final Directory reqDir = Directory('$outputDir/req');
-    final Directory respDir = Directory('$outputDir/resp');
-    final Directory apiDir = Directory('$outputDir/api');
+    final Directory rootDir = Directory('$outputDir/$exportRootName');
+    final Directory reqDir = Directory('${rootDir.path}/req');
+    final Directory respDir = Directory('${rootDir.path}/resp');
+    final Directory apiDir = Directory('${rootDir.path}/api');
 
+    await rootDir.create(recursive: true);
     await reqDir.create(recursive: true);
     await respDir.create(recursive: true);
     await apiDir.create(recursive: true);
 
-    // 保存所有请求 Model
     for (final MapEntry<String, String> entry in reqFiles.entries) {
       final File file = File('${reqDir.path}/${entry.key}');
       await file.writeAsString(entry.value, encoding: utf8);
     }
 
-    // 保存所有响应 Model
     for (final MapEntry<String, String> entry in respFiles.entries) {
       final File file = File('${respDir.path}/${entry.key}');
       await file.writeAsString(entry.value, encoding: utf8);
     }
 
-    // 保存 API 文件
     final File apiFile = File('${apiDir.path}/$apiFileName');
     await apiFile.writeAsString(apiFileContent, encoding: utf8);
 
-    return outputDir;
+    return rootDir.path;
   } catch (e) {
     rethrow;
   }

@@ -190,6 +190,16 @@ class RequestBody {
     }
     return null;
   }
+  Map<String, dynamic>? get schema {
+    if (content == null) {
+      return null;
+    }
+    final Map<String, dynamic>? applicationJson = content!['application/json'] as Map<String, dynamic>?;
+    if (applicationJson == null) {
+      return null;
+    }
+    return applicationJson['schema'] as Map<String, dynamic>?;
+  }
 }
 
 /// 响应
@@ -227,6 +237,17 @@ class ApiResponse {
       return ref;
     }
     return null;
+  }
+
+  Map<String, dynamic>? get schema {
+    if (content == null) {
+      return null;
+    }
+    final Map<String, dynamic>? applicationJson = content!['application/json'] as Map<String, dynamic>?;
+    if (applicationJson == null) {
+      return null;
+    }
+    return applicationJson['schema'] as Map<String, dynamic>?;
   }
 
   /// 获取响应的 example
@@ -344,16 +365,21 @@ class ParsedApiEndpoint {
 
   /// 生成的方法名
   String get methodName {
-    // 从 path 和 summary 生成方法名
-    // 例如: /v1/plan/adjust/receive + "接收" -> receive
-    // 例如: /v1/plan/adjust/search + "列表" -> search
-    String name = path.split('/').lastWhere((String s) => s.isNotEmpty && !s.startsWith('{'));
+    final List<String> parts = path
+        .split('/')
+        .where((String s) => s.isNotEmpty && !s.startsWith('{'))
+        .toList();
 
-    // 移除特殊字符
-    name = name.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '');
+    parts.removeWhere((String s) => RegExp(r'^v\d+$').hasMatch(s));
 
-    // 转为驼峰
-    return _toCamelCase(name);
+    if (parts.isEmpty) {
+      return '';
+    }
+
+    final List<String> methodParts =
+        parts.length >= 2 ? parts.sublist(parts.length - 2) : <String>[parts.last];
+
+    return _toCamelCase(methodParts.map((String s) => _capitalizePreservingCamel(s)).join());
   }
 
   /// 生成的类名前缀 (用于 Req/Resp)
@@ -379,6 +405,17 @@ class ParsedApiEndpoint {
       return input;
     }
     return input[0].toLowerCase() + input.substring(1);
+  }
+
+  String _capitalizePreservingCamel(String input) {
+    if (input.isEmpty) {
+      return input;
+    }
+    final String cleaned = input.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '');
+    if (cleaned.isEmpty) {
+      return cleaned;
+    }
+    return cleaned[0].toUpperCase() + cleaned.substring(1);
   }
 
   String _toPascalCase(String input) {

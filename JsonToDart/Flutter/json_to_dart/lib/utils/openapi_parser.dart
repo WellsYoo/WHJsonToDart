@@ -15,41 +15,31 @@ class OpenApiParser {
       final String path = pathEntry.key;
       final PathItem pathItem = pathEntry.value;
 
-      // 遍历该路径下的所有 HTTP 方法
       for (final MapEntry<String, Operation> operationEntry in pathItem.operations) {
         final String method = operationEntry.key;
         final Operation operation = operationEntry.value;
 
-        // 跳过已废弃的接口 (如果不包含废弃接口)
         if (!includeDeprecated && operation.deprecated) {
           continue;
         }
 
-        // 提取路径参数
-        final List<Parameter>? pathParameters = operation.parameters
-            ?.where((Parameter p) => p.paramIn == 'path')
-            .toList();
+        final List<Parameter>? pathParameters =
+            operation.parameters?.where((Parameter p) => p.paramIn == 'path').toList();
 
-        // 提取请求体 schema ref
         String? requestSchemaRef;
         if (operation.requestBody != null) {
           requestSchemaRef = operation.requestBody!.schemaRef;
         }
 
-        // 提取响应 schema ref
         String? responseSchemaRef;
         bool hasResponse = true;
         if (operation.responses != null && operation.responses!.containsKey('200')) {
           final ApiResponse? response200 = operation.responses!['200'];
           if (response200 != null) {
             responseSchemaRef = response200.schemaRef;
-
-            // 判断是否有响应数据 (通过 example 判断)
             final dynamic example = response200.example;
             if (example is Map && example['data'] != null) {
-              // 检查 data 类型
               final dynamic dataValue = example['data'];
-              // 如果 data 是空字符串或 null,认为无响应
               if (dataValue == '' || dataValue == null || dataValue == false) {
                 hasResponse = false;
               }
@@ -75,7 +65,6 @@ class OpenApiParser {
     return endpoints;
   }
 
-  /// 通过 $ref 获取 schema JSON
   Map<String, dynamic>? getSchemaByRef(String? ref) {
     if (ref == null) {
       return null;
@@ -83,7 +72,6 @@ class OpenApiParser {
     return document.components.getSchemaByRef(ref);
   }
 
-  /// 解析 schema 并转为 JSON 示例 (用于生成 Model)
   Map<String, dynamic>? resolveSchemaToJson(String? schemaRef) {
     if (schemaRef == null) {
       return null;
@@ -97,29 +85,69 @@ class OpenApiParser {
     return _schemaToJson(schema);
   }
 
-  /// 递归将 schema 转为 JSON 示例
+  Map<String, dynamic>? resolveRequestSchemaToJsonForEndpoint(
+    ParsedApiEndpoint endpoint,
+  ) {
+    if (endpoint.requestSchemaRef != null) {
+      return resolveSchemaToJson(endpoint.requestSchemaRef);
+    }
+
+    final Operation? operation = _findOperation(endpoint.path, endpoint.method);
+    final Map<String, dynamic>? schema = operation?.requestBody?.schema;
+    if (schema == null) {
+      return null;
+    }
+    return schemaToJson(schema);
+  }
+
+  Map<String, dynamic>? resolveResponseSchemaToJson(
+    String path,
+    String method,
+  ) {
+    final Operation? operation = _findOperation(path, method);
+    final ApiResponse? response = operation?.responses?['200'];
+    final Map<String, dynamic>? schema = response?.schema;
+    if (schema == null) {
+      return null;
+    }
+
+    if (response?.schemaRef != null) {
+      return resolveSchemaToJson(response!.schemaRef);
+    }
+
+    return schemaToJson(schema);
+  }
+
+  Map<String, dynamic>? resolveResponseSchemaToJsonForEndpoint(
+    ParsedApiEndpoint endpoint,
+  ) {
+    if (endpoint.responseSchemaRef != null) {
+      return resolveSchemaToJson(endpoint.responseSchemaRef);
+    }
+    return resolveResponseSchemaToJson(endpoint.path, endpoint.method);
+  }
+
+  Map<String, dynamic> schemaToJson(Map<String, dynamic> schema) {
+    return _schemaToJson(schema);
+  }
+
   Map<String, dynamic> _schemaToJson(Map<String, dynamic> schema) {
     final Map<String, dynamic> result = <String, dynamic>{};
 
-    // 处理对象类型
     final dynamic typeValue = schema['type'];
     if (typeValue == 'object' || typeValue == null) {
-      // 如果没有指定 type,也尝试读取 properties
       final Map<String, dynamic>? properties = schema['properties'] as Map<String, dynamic>?;
       if (properties != null) {
         for (final MapEntry<String, dynamic> prop in properties.entries) {
           final String propName = prop.key;
           final dynamic propValue = prop.value;
 
-          // 确保 propValue 是 Map
           if (propValue is! Map<String, dynamic>) {
             result[propName] = '';
             continue;
           }
 
           final Map<String, dynamic> propSchema = propValue;
-
-          // 处理 $ref
           if (propSchema.containsKey('\$ref')) {
             final dynamic ref = propSchema['\$ref'];
             if (ref is String) {
@@ -131,7 +159,6 @@ class OpenApiParser {
             }
           }
 
-          // 根据类型生成示例值
           result[propName] = _generateExampleValue(propSchema);
         }
       }
@@ -140,14 +167,11 @@ class OpenApiParser {
     return result;
   }
 
-  /// 根据 schema 类型生成示例值
   dynamic _generateExampleValue(Map<String, dynamic> schema) {
-    // 优先使用 example
     if (schema.containsKey('example')) {
       return schema['example'];
     }
 
-    // 处理 $ref
     if (schema.containsKey('\$ref')) {
       final dynamic ref = schema['\$ref'];
       if (ref is String) {
@@ -162,11 +186,38 @@ class OpenApiParser {
     final dynamic typeValue = schema['type'];
     final dynamic formatValue = schema['format'];
 
-    // 安全地转换为 String
+    if (typeValue is List<dynamic>) {
+      final Iterable<String> types = typeValue.whereType<String>();
+      if (types.contains('object')) {
+        return _schemaToJson(<String, dynamic>{...schema, 'type': 'object'});
+      }
+      if (types.contains('array')) {
+        return _generateExampleValue(<String, dynamic>{...schema, 'type': 'array'});
+      }
+      if (types.contains('string')) {
+        return '';
+      }
+      if (types.contains('integer')) {
+        return 0;
+      }
+      if (types.contains('number')) {
+        return 0.0;
+      }
+      if (types.contains('boolean')) {
+        return false;
+      }
+      if (types.contains('null')) {
+        return null;
+      }
+    }
+
+    if (typeValue == 'null') {
+      return null;
+    }
+
     final String? type = typeValue is String ? typeValue : null;
     final String? format = formatValue is String ? formatValue : null;
 
-    // 如果 type 不是 String,使用默认值
     if (type == null) {
       return '';
     }
@@ -196,56 +247,39 @@ class OpenApiParser {
     }
   }
 
-  /// 从 ResponseData«T» 中提取真实的响应类型
-  /// 例如: ResponseData«PlanAdjustResponse» -> PlanAdjustResponse
   String? extractDataTypeFromResponse(String? responseSchemaRef) {
     if (responseSchemaRef == null) {
       return null;
     }
 
-    print('      extractDataTypeFromResponse: $responseSchemaRef');
-
     final Map<String, dynamic>? responseSchema = getSchemaByRef(responseSchemaRef);
-    print('      Got responseSchema: ${responseSchema != null ? "yes" : "null"}');
-
     if (responseSchema == null) {
       return null;
     }
 
-    // 查找 properties.data.$ref
     final Map<String, dynamic>? properties = responseSchema['properties'] as Map<String, dynamic>?;
-    print('      Got properties: ${properties != null ? "yes (${properties.keys.length} keys)" : "null"}');
-
     if (properties == null) {
       return null;
     }
 
     final Map<String, dynamic>? dataProperty = properties['data'] as Map<String, dynamic>?;
-    print('      Got dataProperty: ${dataProperty != null ? "yes" : "null"}');
-
     if (dataProperty == null) {
       return null;
     }
 
-    // 处理 $ref
     if (dataProperty.containsKey('\$ref')) {
       final dynamic ref = dataProperty['\$ref'];
-      print('      Found $ref in data: $ref');
       if (ref is String) {
         return ref;
       }
       return null;
     }
 
-    // 处理 type: array (列表响应)
     final dynamic typeValue = dataProperty['type'];
-    print('      data type: $typeValue');
-
     if (typeValue == 'array') {
       final Map<String, dynamic>? items = dataProperty['items'] as Map<String, dynamic>?;
       if (items != null && items.containsKey('\$ref')) {
         final dynamic ref = items['\$ref'];
-        print('      Found $ref in array items: $ref');
         if (ref is String) {
           return ref;
         }
@@ -255,13 +289,30 @@ class OpenApiParser {
     return null;
   }
 
-  /// 从文件路径加载 OpenAPI 文档
+  Operation? _findOperation(String path, String method) {
+    final PathItem? pathItem = document.paths[path];
+    if (pathItem == null) {
+      return null;
+    }
+
+    switch (method.toLowerCase()) {
+      case 'get':
+        return pathItem.get;
+      case 'post':
+        return pathItem.post;
+      case 'put':
+        return pathItem.put;
+      case 'delete':
+        return pathItem.delete;
+      default:
+        return null;
+    }
+  }
+
   static Future<OpenApiParser> fromFile(String filePath) async {
-    // 此方法在 Web 环境不可用,由调用方处理文件读取
     throw UnsupportedError('Use fromJson instead');
   }
 
-  /// 从 JSON 字符串解析 OpenAPI 文档
   static OpenApiParser fromJson(String jsonString) {
     final dynamic json = jsonDecode(jsonString);
     final OpenApiDocument document = OpenApiDocument.fromJson(json as Map<String, dynamic>);

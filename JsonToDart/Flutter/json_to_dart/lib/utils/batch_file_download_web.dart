@@ -5,8 +5,7 @@ Future<String?> downloadBatchFiles({
   required Map<String, String> respFiles,
   required String apiFileContent,
   required String apiFileName,
+  required String exportRootName,
 }) async {
-  // Web 环境下不支持批量下载到文件夹
-  // 返回 null 表示需要使用其他方式
   return null;
 }

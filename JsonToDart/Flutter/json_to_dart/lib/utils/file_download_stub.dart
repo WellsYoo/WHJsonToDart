@@ -5,7 +5,7 @@ import 'package:file_picker/file_picker.dart';
 Future<void> downloadFile(String content, String fileName) async {
   try {
     // 让用户选择保存位置
-    final String? outputPath = await FilePicker.platform.saveFile(
+    final String? outputPath = await FilePicker.saveFile(
       dialogTitle: '保存文件',
       fileName: fileName,
       type: FileType.custom,
