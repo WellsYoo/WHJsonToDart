@@ -6,7 +6,8 @@
       "Bash(flutter analyze:*)",
       "Bash(cd:*)",
       "Bash(git:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(flutter test:*)"
     ]
   }
 }

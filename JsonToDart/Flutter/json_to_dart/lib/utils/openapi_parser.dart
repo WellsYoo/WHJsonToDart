@@ -26,6 +26,9 @@ class OpenApiParser {
         final List<Parameter>? pathParameters =
             operation.parameters?.where((Parameter p) => p.paramIn == 'path').toList();
 
+        final List<Parameter>? queryParameters =
+            operation.parameters?.where((Parameter p) => p.paramIn == 'query').toList();
+
         String? requestSchemaRef;
         if (operation.requestBody != null) {
           requestSchemaRef = operation.requestBody!.schemaRef;
@@ -57,6 +60,7 @@ class OpenApiParser {
           requestSchemaRef: requestSchemaRef,
           responseSchemaRef: responseSchemaRef,
           pathParameters: pathParameters,
+          queryParameters: queryParameters,
           hasResponse: hasResponse,
         ));
       }
@@ -92,12 +96,26 @@ class OpenApiParser {
       return resolveSchemaToJson(endpoint.requestSchemaRef);
     }
 
+    if (endpoint.queryParameters != null && endpoint.queryParameters!.isNotEmpty) {
+      return _queryParametersToJson(endpoint.queryParameters!);
+    }
+
     final Operation? operation = _findOperation(endpoint.path, endpoint.method);
     final Map<String, dynamic>? schema = operation?.requestBody?.schema;
     if (schema == null) {
       return null;
     }
     return schemaToJson(schema);
+  }
+
+  Map<String, dynamic> _queryParametersToJson(List<Parameter> parameters) {
+    final Map<String, dynamic> result = <String, dynamic>{};
+
+    for (final Parameter parameter in parameters) {
+      result[parameter.name] = _generateExampleValue(parameter.schema ?? <String, dynamic>{});
+    }
+
+    return result;
   }
 
   Map<String, dynamic>? resolveResponseSchemaToJson(

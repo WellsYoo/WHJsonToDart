@@ -346,6 +346,7 @@ class ParsedApiEndpoint {
     this.requestSchemaRef,
     this.responseSchemaRef,
     this.pathParameters,
+    this.queryParameters,
     this.hasResponse = true,
   });
 
@@ -358,6 +359,7 @@ class ParsedApiEndpoint {
   final String? requestSchemaRef;
   final String? responseSchemaRef;
   final List<Parameter>? pathParameters;
+  final List<Parameter>? queryParameters;
   final bool hasResponse; // 是否有响应参数
 
   /// 是否选中 (用于批量生成)
@@ -398,6 +400,23 @@ class ParsedApiEndpoint {
   /// 是否使用 sprintf URL (包含路径参数)
   bool get useSprintfUrl {
     return pathParameters != null && pathParameters!.isNotEmpty;
+  }
+
+  /// 是否存在请求参数
+  bool get hasRequestParameters {
+    return requestSchemaRef != null ||
+        useSprintfUrl ||
+        (queryParameters != null && queryParameters!.isNotEmpty);
+  }
+
+  int get requestParameterCount {
+    if (requestSchemaRef != null) {
+      return 999;
+    }
+    if (useSprintfUrl) {
+      return pathParameters?.length ?? 0;
+    }
+    return queryParameters?.length ?? 0;
   }
 
   String _toCamelCase(String input) {

@@ -67,10 +67,10 @@ class BatchApiCodeGenerator {
 
       final String? reqModelCode = await _generateRequestModel(endpoint);
       if (reqModelCode != null) {
-        final String fileName = _toSnakeCase(endpoint.classNamePrefix) + '_req.dart';
+        final String fileName = _toSnakeCase(_normalizedClassNamePrefix(endpoint)) + '_req.dart';
         reqFiles[fileName] = reqModelCode;
-      } else if (endpoint.requestSchemaRef != null ||
-          parser.resolveRequestSchemaToJsonForEndpoint(endpoint) != null) {
+      } else if (_usesRequestModel(endpoint) &&
+          (endpoint.requestSchemaRef != null || parser.resolveRequestSchemaToJsonForEndpoint(endpoint) != null)) {
         skippedReqModels.add(endpoint.classNamePrefix);
       }
 
@@ -79,7 +79,7 @@ class BatchApiCodeGenerator {
       if (endpoint.hasResponse) {
         respModelCode = await _generateResponseModel(endpoint);
         if (respModelCode != null) {
-          final String fileName = _toSnakeCase(endpoint.classNamePrefix) + '_resp.dart';
+          final String fileName = _toSnakeCase(_normalizedClassNamePrefix(endpoint)) + '_resp.dart';
           respFiles[fileName] = respModelCode;
           hasGeneratedResponseModel = true;
         } else if (endpoint.responseSchemaRef != null ||
@@ -119,6 +119,10 @@ class BatchApiCodeGenerator {
   }
 
   Future<String?> _generateRequestModel(ParsedApiEndpoint endpoint) async {
+    if (!_usesRequestModel(endpoint)) {
+      return null;
+    }
+
     final Map<String, dynamic>? schemaJson =
         parser.resolveRequestSchemaToJsonForEndpoint(endpoint);
     if (schemaJson == null || schemaJson.isEmpty) {
@@ -126,7 +130,7 @@ class BatchApiCodeGenerator {
     }
 
     final String jsonString = _jsonToString(schemaJson);
-    final String className = endpoint.classNamePrefix + 'Req';
+    final String className = _normalizedClassNamePrefix(endpoint) + 'Req';
 
     return await modelGenerator(jsonString, className);
   }
@@ -147,7 +151,7 @@ class BatchApiCodeGenerator {
     }
 
     final String jsonString = _jsonToString(schemaJson);
-    final String className = endpoint.classNamePrefix + 'Resp';
+    final String className = _normalizedClassNamePrefix(endpoint) + 'Resp';
 
     return await modelGenerator(jsonString, className);
   }
@@ -159,8 +163,8 @@ class BatchApiCodeGenerator {
   ) {
     final String methodName = endpoint.methodName;
     final String urlConstantName = _getUrlConstantName(endpoint);
-    final String requestClassName = endpoint.classNamePrefix + 'Req';
-    final String responseClassName = endpoint.classNamePrefix + 'Resp';
+    final String requestClassName = _normalizedClassNamePrefix(endpoint) + 'Req';
+    final String responseClassName = _normalizedClassNamePrefix(endpoint) + 'Resp';
 
     sb.writeLine('  /// ${endpoint.summary} ${endpoint.method.toUpperCase()}');
     if (endpoint.useSprintfUrl) {
@@ -203,6 +207,66 @@ class BatchApiCodeGenerator {
     }
   }
 
+  bool _usesRequestModel(ParsedApiEndpoint endpoint) {
+    return endpoint.requestSchemaRef != null ||
+        (!endpoint.useSprintfUrl && endpoint.requestParameterCount >= 3);
+  }
+
+  bool _usesInlineParameters(ParsedApiEndpoint endpoint) {
+    return !endpoint.useSprintfUrl &&
+        endpoint.requestSchemaRef == null &&
+        endpoint.requestParameterCount > 0 &&
+        endpoint.requestParameterCount < 3;
+  }
+
+  String _normalizedClassNamePrefix(ParsedApiEndpoint endpoint) {
+    final String prefix = endpoint.classNamePrefix;
+    if (prefix.startsWith('Api') && prefix.length > 3) {
+      return prefix.substring(3);
+    }
+    return prefix;
+  }
+
+  String _toParameterName(String input) {
+    final List<String> parts = input.split('_').where((String part) => part.isNotEmpty).toList();
+    if (parts.isEmpty) {
+      return input;
+    }
+    return parts.first + parts.skip(1).map((String part) => part[0].toUpperCase() + part.substring(1)).join();
+  }
+
+  void _writeInlineMethodParameters(CustomStringBuffer sb, ParsedApiEndpoint endpoint) {
+    for (final Parameter parameter in endpoint.queryParameters ?? <Parameter>[]) {
+      final String type = _dartTypeFromSchema(parameter.schema);
+      final String parameterName = _toParameterName(parameter.name);
+      final String requiredKeyword = parameter.required == true ? 'required ' : '';
+      sb.writeLine('        ${requiredKeyword}$type $parameterName,');
+    }
+  }
+
+  void _writeInlineQueryParameters(CustomStringBuffer sb, ParsedApiEndpoint endpoint) {
+    sb.writeLine('      queryParameters: <String, dynamic>{');
+    for (final Parameter parameter in endpoint.queryParameters ?? <Parameter>[]) {
+      final String parameterName = _toParameterName(parameter.name);
+      sb.writeLine("        '${parameter.name}': $parameterName,");
+    }
+    sb.writeLine('      }..removeWhere((key, value) => value == null),');
+  }
+
+  String _dartTypeFromSchema(Map<String, dynamic>? schema) {
+    final String? type = schema?['type'] as String?;
+    switch (type) {
+      case 'integer':
+        return 'int?';
+      case 'number':
+        return 'double?';
+      case 'boolean':
+        return 'bool?';
+      default:
+        return 'String?';
+    }
+  }
+
   void _generateGetMethod(
     CustomStringBuffer sb,
     ParsedApiEndpoint endpoint,
@@ -231,7 +295,7 @@ class BatchApiCodeGenerator {
         sb.writeLine('    );');
         sb.writeLine('  }');
       }
-    } else {
+    } else if (_usesRequestModel(endpoint)) {
       if (hasGeneratedResponseModel) {
         sb.writeLine('  Future<$responseClassName?> ${methodName}Req({');
         sb.writeLine('    required $requestClassName req,');
@@ -252,6 +316,42 @@ class BatchApiCodeGenerator {
         sb.writeLine('    );');
         sb.writeLine('  }');
       }
+    } else if (_usesInlineParameters(endpoint)) {
+      if (hasGeneratedResponseModel) {
+        sb.writeLine('  Future<$responseClassName?> ${methodName}Req({');
+        _writeInlineMethodParameters(sb, endpoint);
+        sb.writeLine('  }) async {');
+        sb.writeLine('    var response = await MyHttpUtil().get(');
+        sb.writeLine('      $urlConstantName,');
+        _writeInlineQueryParameters(sb, endpoint);
+        sb.writeLine('    );');
+        sb.writeLine('    return $responseClassName.fromJson(response);');
+        sb.writeLine('  }');
+      } else {
+        sb.writeLine('  Future<dynamic> ${methodName}Req({');
+        _writeInlineMethodParameters(sb, endpoint);
+        sb.writeLine('  }) async {');
+        sb.writeLine('    return await MyHttpUtil().get(');
+        sb.writeLine('      $urlConstantName,');
+        _writeInlineQueryParameters(sb, endpoint);
+        sb.writeLine('    );');
+        sb.writeLine('  }');
+      }
+    } else {
+      if (hasGeneratedResponseModel) {
+        sb.writeLine('  Future<$responseClassName?> ${methodName}Req() async {');
+        sb.writeLine('    var response = await MyHttpUtil().get(');
+        sb.writeLine('      $urlConstantName,');
+        sb.writeLine('    );');
+        sb.writeLine('    return $responseClassName.fromJson(response);');
+        sb.writeLine('  }');
+      } else {
+        sb.writeLine('  Future<dynamic> ${methodName}Req() async {');
+        sb.writeLine('    return await MyHttpUtil().get(');
+        sb.writeLine('      $urlConstantName,');
+        sb.writeLine('    );');
+        sb.writeLine('  }');
+      }
     }
   }
 
@@ -264,24 +364,65 @@ class BatchApiCodeGenerator {
     String responseClassName,
     bool hasGeneratedResponseModel,
   ) {
-    if (hasGeneratedResponseModel) {
-      sb.writeLine('  Future<$responseClassName?> ${methodName}Req({');
-      sb.writeLine('    required $requestClassName req,');
-      sb.writeLine('  }) async {');
-      sb.writeLine('    var response = await MyHttpUtil().post($urlConstantName,');
-      sb.writeLine('        data: req.toJson()..removeWhere((key, value) => value == null));');
-      sb.writeLine('    return $responseClassName.fromJson(response);');
-      sb.writeLine('  }');
+    if (_usesRequestModel(endpoint)) {
+      if (hasGeneratedResponseModel) {
+        sb.writeLine('  Future<$responseClassName?> ${methodName}Req({');
+        sb.writeLine('    required $requestClassName req,');
+        sb.writeLine('  }) async {');
+        sb.writeLine('    var response = await MyHttpUtil().post($urlConstantName,');
+        if (endpoint.queryParameters != null && endpoint.queryParameters!.isNotEmpty) {
+          sb.writeLine('        queryParameters: req.toJson()..removeWhere((key, value) => value == null),');
+          sb.writeLine('    );');
+        } else {
+          sb.writeLine('        data: req.toJson()..removeWhere((key, value) => value == null));');
+        }
+        sb.writeLine('    return $responseClassName.fromJson(response);');
+        sb.writeLine('  }');
+      } else {
+        sb.writeLine('  Future<void> ${methodName}Req({');
+        sb.writeLine('    required $requestClassName req,');
+        sb.writeLine('  }) async {');
+        sb.writeLine('    await MyHttpUtil().post($urlConstantName,');
+        if (endpoint.queryParameters != null && endpoint.queryParameters!.isNotEmpty) {
+          sb.writeLine('        queryParameters: req.toJson()..removeWhere((key, value) => value == null),');
+          sb.writeLine('    );');
+        } else {
+          sb.writeLine('        data: req.toJson()..removeWhere((key, value) => value == null));');
+        }
+        sb.writeLine('  }');
+      }
+    } else if (_usesInlineParameters(endpoint)) {
+      if (hasGeneratedResponseModel) {
+        sb.writeLine('  Future<$responseClassName?> ${methodName}Req({');
+        _writeInlineMethodParameters(sb, endpoint);
+        sb.writeLine('  }) async {');
+        sb.writeLine('    var response = await MyHttpUtil().post($urlConstantName,');
+        _writeInlineQueryParameters(sb, endpoint);
+        sb.writeLine('    );');
+        sb.writeLine('    return $responseClassName.fromJson(response);');
+        sb.writeLine('  }');
+      } else {
+        sb.writeLine('  Future<void> ${methodName}Req({');
+        _writeInlineMethodParameters(sb, endpoint);
+        sb.writeLine('  }) async {');
+        sb.writeLine('    await MyHttpUtil().post($urlConstantName,');
+        _writeInlineQueryParameters(sb, endpoint);
+        sb.writeLine('    );');
+        sb.writeLine('  }');
+      }
     } else {
-      sb.writeLine('  Future<dynamic> ${methodName}Req({');
-      sb.writeLine('    required $requestClassName req,');
-      sb.writeLine('  }) async {');
-      sb.writeLine('    return await MyHttpUtil().post($urlConstantName,');
-      sb.writeLine('        data: req.toJson()..removeWhere((key, value) => value == null));');
-      sb.writeLine('  }');
+      if (hasGeneratedResponseModel) {
+        sb.writeLine('  Future<$responseClassName?> ${methodName}Req() async {');
+        sb.writeLine('    var response = await MyHttpUtil().post($urlConstantName);');
+        sb.writeLine('    return $responseClassName.fromJson(response);');
+        sb.writeLine('  }');
+      } else {
+        sb.writeLine('  Future<void> ${methodName}Req() async {');
+        sb.writeLine('    await MyHttpUtil().post($urlConstantName);');
+        sb.writeLine('  }');
+      }
     }
   }
-
   void _generatePutMethod(
     CustomStringBuffer sb,
     ParsedApiEndpoint endpoint,
@@ -290,20 +431,32 @@ class BatchApiCodeGenerator {
     String requestClassName,
     String responseClassName,
   ) {
-    sb.writeLine('  Future<bool> ${methodName}Req({');
-    sb.writeLine('    required $requestClassName req,');
-    sb.writeLine('  }) async {');
-    sb.writeLine('    bool result = await MyActionUtil.form().handle(');
-    sb.writeLine('      action: () async {');
-    sb.writeLine('        return await MyHttpUtil().put($urlConstantName,');
-    sb.writeLine('            data: req.toJson()..removeWhere((key, value) => value == null));');
-    sb.writeLine('      },');
-    sb.writeLine('      loadText: \'提交中\',');
-    sb.writeLine('      successText: \'操作成功\',');
-    sb.writeLine('      errorText: \'操作失败\',');
-    sb.writeLine('    );');
-    sb.writeLine('    return result;');
-    sb.writeLine('  }');
+    if (_usesRequestModel(endpoint)) {
+      sb.writeLine('  Future<void> ${methodName}Req({');
+      sb.writeLine('    required $requestClassName req,');
+      sb.writeLine('  }) async {');
+      if (endpoint.queryParameters != null && endpoint.queryParameters!.isNotEmpty) {
+        sb.writeLine('    await MyHttpUtil().put($urlConstantName,');
+        sb.writeLine('      queryParameters: req.toJson()..removeWhere((key, value) => value == null),');
+        sb.writeLine('    );');
+      } else {
+        sb.writeLine('    await MyHttpUtil().put($urlConstantName,');
+        sb.writeLine('        data: req.toJson()..removeWhere((key, value) => value == null));');
+      }
+      sb.writeLine('  }');
+    } else if (_usesInlineParameters(endpoint)) {
+      sb.writeLine('  Future<void> ${methodName}Req({');
+      _writeInlineMethodParameters(sb, endpoint);
+      sb.writeLine('  }) async {');
+      sb.writeLine('    await MyHttpUtil().put($urlConstantName,');
+      _writeInlineQueryParameters(sb, endpoint);
+      sb.writeLine('    );');
+      sb.writeLine('  }');
+    } else {
+      sb.writeLine('  Future<void> ${methodName}Req() async {');
+      sb.writeLine('    await MyHttpUtil().put($urlConstantName);');
+      sb.writeLine('  }');
+    }
   }
 
   void _generateDeleteMethod(
@@ -330,11 +483,29 @@ class BatchApiCodeGenerator {
       sb.writeLine('    );');
       sb.writeLine('    return result;');
       sb.writeLine('  }');
-    } else {
-      sb.writeLine('  Future<dynamic> ${methodName}Req({');
+    } else if (_usesRequestModel(endpoint)) {
+      sb.writeLine('  Future<void> ${methodName}Req({');
       sb.writeLine('    required $requestClassName req,');
       sb.writeLine('  }) async {');
-      sb.writeLine('    return await MyHttpUtil().delete($urlConstantName);');
+      if (endpoint.queryParameters != null && endpoint.queryParameters!.isNotEmpty) {
+        sb.writeLine('    await MyHttpUtil().delete($urlConstantName,');
+        sb.writeLine('      queryParameters: req.toJson()..removeWhere((key, value) => value == null),');
+        sb.writeLine('    );');
+      } else {
+        sb.writeLine('    await MyHttpUtil().delete($urlConstantName);');
+      }
+      sb.writeLine('  }');
+    } else if (_usesInlineParameters(endpoint)) {
+      sb.writeLine('  Future<void> ${methodName}Req({');
+      _writeInlineMethodParameters(sb, endpoint);
+      sb.writeLine('  }) async {');
+      sb.writeLine('    await MyHttpUtil().delete($urlConstantName,');
+      _writeInlineQueryParameters(sb, endpoint);
+      sb.writeLine('    );');
+      sb.writeLine('  }');
+    } else {
+      sb.writeLine('  Future<void> ${methodName}Req() async {');
+      sb.writeLine('    await MyHttpUtil().delete($urlConstantName);');
       sb.writeLine('  }');
     }
   }
